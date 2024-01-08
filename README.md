@@ -1,4 +1,4 @@
-# [OpenAi Assistants](https://chatgpt-dalle.streamlit.app/)
+# [OpenAi Assistants](https://assistants.streamlit.app/)
 
 * This app presents OpenAI assistants by using OpenAI's Assistants API
   
@@ -17,5 +17,5 @@
 
 ## Usage
 ```python
-streamlit run OpenAI_Assistants.py
+streamlit run OpenAI_assistants.py
 ```

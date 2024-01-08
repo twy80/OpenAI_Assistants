@@ -409,8 +409,8 @@ def openai_assistants():
             "<small>[Differential equations](https://diff-eqn.streamlit.app/)</small>",
             unsafe_allow_html=True,
         )
-        if st.button("Finish"):
-            os._exit(0)
+        # if st.button("Finish"):
+        #     os._exit(0)
 
     st.write("##### Conversation with Assistant")
     st.write("")
