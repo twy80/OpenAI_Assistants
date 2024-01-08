@@ -1,4 +1,4 @@
-# [OpenAi Assistants](https://assistants.streamlit.app/)
+# [OpenAi Assistants](https://assistants.streamlit.app/) 'Under Development!'
 
 * This app presents OpenAI assistants by using OpenAI's Assistants API
   
