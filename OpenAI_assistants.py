@@ -532,7 +532,10 @@ def update_assistant(assistant_id):
             assistant_id
         )
         st.write(f"**:blue[Modify the assistant] $\,${assistant.name}**")
-        model_index = model_options.index(assistant.model)
+        if assistant.model in model_options:
+            model_index = model_options.index(assistant.model)
+        else:
+            model_index = 0
         assistant_name_value = assistant.name
         instructions_value = assistant.instructions
         description_value = assistant.description
@@ -540,6 +543,12 @@ def update_assistant(assistant_id):
         file_ids_value = assistant.file_ids
 
     with st.form("Submit"):
+        st.write("**Name**")
+        name = st.text_input(
+            label="assistant name",
+            value=assistant_name_value,
+            label_visibility="collapsed",
+        )
         st.write(
             """
             **Model** $\,$(This default model will be overriden
@@ -551,12 +560,6 @@ def update_assistant(assistant_id):
             options=("gpt-3.5-turbo-1106", "gpt-4-1106-preview"),
             label_visibility="collapsed",
             index=model_index,
-        )
-        st.write("**Name**")
-        name = st.text_input(
-            label="assistant name",
-            value=assistant_name_value,
-            label_visibility="collapsed",
         )
         st.write("**Instructions**")
         instructions = st.text_area(
