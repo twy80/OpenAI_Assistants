@@ -17,4 +17,4 @@
 ```python
 streamlit run OpenAI_assistants.py
 ```
-[![Exploring the App: A Visual Guide](files/Streamlit_Assistants_App.png)]
+[![Exploring the App: A Visual Guide](files/Streamlit_Assistants_App.png)](https://youtu.be/ACGFIIfF8EA)
