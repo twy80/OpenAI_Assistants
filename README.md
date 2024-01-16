@@ -1,15 +1,13 @@
-# [OpenAi Assistants](https://assistants.streamlit.app/) 'Under Development!'
+# [OpenAi Assistants](https://assistants.streamlit.app/)
 
 * This app presents OpenAI assistants by using OpenAI's Assistants API
   
-  - Assistants, threads, and messages can be managed.
+  - Assistants, threads, uploaded files and messages can be managed.
 
   - The model "gpt-3.5-turbo-1106" or "gpt-4-1106-preview" can be used.
 
   - Voice recognition is supported.
 
-  - Recording of the user's voice is stopped when there is no input for 3 seconds
-  
 * This page is written in python using the Streamlit framework.
 
 * Your OpenAI API key is required to run this code. You can obtain an API key
@@ -19,3 +17,4 @@
 ```python
 streamlit run OpenAI_assistants.py
 ```
+[![Exploring the App: A Visual Guide](files/Streamlit_Assistants_App.png)]
