@@ -834,7 +834,9 @@ def openai_assistants():
         st.session_state.manage_assistant_app = "show"
 
     if not os.path.exists(st.session_state.thread_info_pickle):
-        # Save st.session_state.thread_dictionary to pickle
+        # Create an empty pickle and a thread
+        with open(st.session_state.thread_info_pickle, 'w') as file:
+            pass
         create_new_thread()
 
     # Load st.session_state.thread_dictionary from pickle
