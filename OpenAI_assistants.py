@@ -573,7 +573,7 @@ def update_assistant(assistant_id):
             value=description_value,
             label_visibility="collapsed",
         )
-        st.write("**Tools** ('function' has not been implemented yet.)")
+        st.write("**Tools** ('function calling' will be supported later.)")
         tool_options = ["retrieval", "code_interpreter"]
         tool_names = st.multiselect(
             label="assistant tools",
@@ -923,8 +923,6 @@ def openai_assistants():
             on_click=delete_thread,
             args=(st.session_state.thread_index,),
         )
-        # if st.button(label="$\;$Refresh the screen$~$"):
-        #     st.rerun()
 
         st.write("---")
         st.write(
@@ -934,8 +932,6 @@ def openai_assistants():
             "<small>[Differential equations](https://diff-eqn.streamlit.app/)</small>",
             unsafe_allow_html=True,
         )
-        # if st.button("Finish"):
-        #     os._exit(0)
 
     if st.session_state.run_assistants:
         run_assistant(model, assistant_id, thread_index)
