@@ -40,7 +40,7 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
         file_ids (list of strings): list of file IDs.
 
     Returns:
-        message: Text of the message object in the conversation thread.
+        message: The most recent message object in the conversation thread.
     """
 
     try:
@@ -71,7 +71,7 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
     messages = st.session_state.client.beta.threads.messages.list(
         thread_id=thread_id
     )
-    message = messages.data[0].content[0].text
+    message = messages.data[0]
 
     return message
 
@@ -124,6 +124,19 @@ def get_file_path(number, length=20):
     return file_name
 
 
+def get_file_name_from_id(file_id):
+    """
+    Return the file name corresponding to the given file id.
+    """
+
+    try:
+        file = st.session_state.client.files.retrieve(file_id)
+        file_name= file.filename
+    except Exception:
+        file_name = "deleted file"
+    return file_name
+
+
 def thread_exists(thread_id):
     """
     Check to see if the thread with a given id exists.
@@ -136,6 +149,33 @@ def thread_exists(thread_id):
     except APIError:
         # If the thread does not exist, return False
         return False
+
+
+def show_message(message_data):
+    """
+    Show the given message.
+    """
+
+    if message_data.file_ids:
+        file_names = [get_file_name_from_id(id) for id in message_data.file_ids]
+        file_names = ", ".join(file_names)
+        file_names = f" $\,$(:blue[{file_names}])"
+    else:
+        file_names = ""
+
+    for msg in message_data.content:
+        if message_data.role == "user":
+            with st.chat_message("user"):
+                st.markdown(msg.text.value + file_names)
+        elif hasattr(msg, "text"):
+            # Print the citation information
+            content_text, citations, cited_files = process_citations(msg.text)
+            with st.chat_message("assistant"):
+                st.markdown(content_text + file_names)
+                if citations:
+                    with st.expander("Source(s)"):
+                        for citation, file in zip(citations, cited_files):
+                            st.markdown(file, help=citation)
 
 
 def show_thread_messages(thread_id, no_of_messages="All"):
@@ -156,21 +196,7 @@ def show_thread_messages(thread_id, no_of_messages="All"):
         st.error("'no_of_messages' is a positive integer or 'All'", icon="🚨")
 
     for message in reversed(messages):
-        for role, content in zip(message.role, message.content):
-            if role == "u":
-                with st.chat_message("user"):
-                    st.markdown(content.text.value)
-            elif hasattr(content, "text"):
-                # Print the citation information
-                content_text, citations, cited_files = process_citations(
-                    content.text
-                )
-                with st.chat_message("assistant"):
-                    st.markdown(content_text)
-                    if citations:
-                        with st.expander("Source(s)"):
-                            for citation, file in zip(citations, cited_files):
-                                st.markdown(file, help=citation)
+        show_message(message)
 
 
 def name_thread(thread_id):
@@ -475,9 +501,19 @@ def show_assistant(assistant_id):
     Show the information of an assistant object
     """
 
-    assistant = st.session_state.client.beta.assistants.retrieve(assistant_id)
+    client = st.session_state.client
+    assistant = client.beta.assistants.retrieve(assistant_id)
     tools = [tool.type for tool in assistant.tools]
-    file_ids = [id[0:12] + "..." for id in assistant.file_ids]
+    files = [client.files.retrieve(file_id) for file_id in assistant.file_ids]
+    file_ids, file_names = [], []
+
+    # Show the file names and ids up to 12 characters
+    for file in files:
+        file_ids.append(file.id[0:12] + "...")
+        file_name = file.filename
+        if len(file_name) > 12:
+            file_name = file_name[0:12] + "..."
+        file_names.append(file_name)
 
     st.write("")
     if st.button(label="Create an assistant"):
@@ -496,6 +532,7 @@ def show_assistant(assistant_id):
             - :blue[Instructions]: {assistant.instructions}
             - :blue[Description]: {assistant.description}
             - :blue[Tool(s)]: {", ".join(tools)}
+            - :blue[File Name(s)]: {", ".join(file_names)}
             - :blue[File ID(s)]: {", ".join(file_ids)}
             """
         )
@@ -688,22 +725,7 @@ def run_assistant(model, assistant_id, thread_index):
         if message is None:
             st.error("Request not completed.", icon="🚨")
         else:
-            # Print the citation information
-            content_text, citations, cited_files = process_citations(message)
-            with st.chat_message("assistant"):
-                st.markdown(content_text)
-                if citations:
-                    with st.expander("Source(s)"):
-                        for citation, file in zip(citations, cited_files):
-                            st.markdown(file, help=citation)
-
-                assistant = st.session_state.client.beta.assistants.retrieve(assistant_id)
-                st.markdown(
-                    f"<small>(:blue[Assistant]: {assistant.name}, </small>"
-                    + f"<small>:blue[Model] = {model})</small>",
-                    unsafe_allow_html=True,
-                )
-
+            show_message(message)
             if st.session_state.threads_list[thread_index]["name"] == "No name yet":
                 thread_name = name_thread(thread_id)
                 st.session_state.threads_list[thread_index]["name"] = thread_name
@@ -923,6 +945,8 @@ def openai_assistants():
             on_click=delete_thread,
             args=(st.session_state.thread_index,),
         )
+        if st.button(label="$\;$Refresh the screen$~$"):
+            st.rerun()
 
         st.write("---")
         st.write(
