@@ -40,7 +40,9 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
         file_ids (list of strings): list of file IDs.
 
     Returns:
-        message: The most recent message object in the conversation thread.
+        returned_messages: The list of the most recent assistant message
+                           objects in the conversation thread,
+                           or None if the request has not been completed.
     """
 
     try:
@@ -71,9 +73,14 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
     messages = st.session_state.client.beta.threads.messages.list(
         thread_id=thread_id
     )
-    message = messages.data[0]
 
-    return message
+    returned_messages = []
+    index = 0
+    while messages.data[index].role == "assistant":
+        returned_messages.append(messages.data[index])
+        index += 1
+
+    return returned_messages
 
 
 def process_citations(message):
@@ -151,25 +158,31 @@ def thread_exists(thread_id):
         return False
 
 
-def show_message(message_data):
+def show_messages(message_data_list):
     """
-    Show the given message.
+    Show the given list of messages.
     """
 
-    if message_data.file_ids:
-        file_names = [get_file_name_from_id(id) for id in message_data.file_ids]
-        file_names = ", ".join(file_names)
-        file_names = f" $\,$(:blue[{file_names}])"
-    else:
-        file_names = ""
+    for message in reversed(message_data_list):
+        if message.file_ids:
+            file_names = [get_file_name_from_id(id) for id in message.file_ids]
+            file_names = ", ".join(file_names)
+            file_names = f" $\,$(:blue[{file_names}])"
+        else:
+            file_names = ""
 
-    for msg in message_data.content:
-        if message_data.role == "user":
+        if len(message.content) > 1:
+            st.error("Unexpected!", icon="🚨")
+
+        message_content = message.content[0]
+        if message.role == "user":
             with st.chat_message("user"):
-                st.markdown(msg.text.value + file_names)
-        elif hasattr(msg, "text"):
+                st.markdown(message_content.text.value + file_names)
+        elif hasattr(message_content, "text"):
             # Print the citation information
-            content_text, citations, cited_files = process_citations(msg.text)
+            content_text, citations, cited_files = process_citations(
+                message_content.text
+            )
             with st.chat_message("assistant"):
                 st.markdown(content_text + file_names)
                 if citations:
@@ -189,14 +202,12 @@ def show_thread_messages(thread_id, no_of_messages="All"):
     )
 
     if no_of_messages == "All":
-        messages = messages.data
-    elif isinstance(no_of_messages, int) and no_of_messages > 0:
-        messages = messages.data[:no_of_messages]
-    else:
+        no_of_messages = len(messages.data)
+    elif not isinstance(no_of_messages, int) or no_of_messages <= 0:
         st.error("'no_of_messages' is a positive integer or 'All'", icon="🚨")
+        return None
 
-    for message in reversed(messages):
-        show_message(message)
+    show_messages(messages.data[:no_of_messages])
 
 
 def name_thread(thread_id):
@@ -725,7 +736,7 @@ def run_assistant(model, assistant_id, thread_index):
         if message is None:
             st.error("Request not completed.", icon="🚨")
         else:
-            show_message(message)
+            show_messages(message)
             if st.session_state.threads_list[thread_index]["name"] == "No name yet":
                 thread_name = name_thread(thread_id)
                 st.session_state.threads_list[thread_index]["name"] = thread_name
