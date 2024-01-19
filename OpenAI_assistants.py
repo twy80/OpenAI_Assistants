@@ -40,9 +40,9 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
         file_ids (list of strings): list of file IDs.
 
     Returns:
-        returned_messages: The list of the most recent assistant message
-                           objects in the conversation thread,
-                           or None if the request has not been completed.
+        messages_list: The list of the most recent assistant message objects
+                       in the conversation thread,
+                       or None if the request has not been completed.
     """
 
     try:
@@ -74,22 +74,22 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
         thread_id=thread_id
     )
 
-    returned_messages = []
+    messages_list = []
     index = 0
     while messages.data[index].role == "assistant":
-        returned_messages.append(messages.data[index])
+        messages_list.append(messages.data[index])
         index += 1
 
-    return returned_messages
+    return messages_list
 
 
-def process_citations(message):
+def process_citations(content):
     """
     Process citations in the given message,
     and returns the modified message, citations, and cited files.
 
     Args:
-        message: The data of the original message object.
+        content: The content of a message object.
 
     Returns:
         tuple: A tuple containing the modified message content,
@@ -97,12 +97,12 @@ def process_citations(message):
     """
     client = st.session_state.client
 
-    annotations = message.annotations
+    annotations = content.annotations
     citations, cited_files = [], []
 
     for index, annotation in enumerate(annotations):
         # Replace the text with a footnote
-        message.value = message.value.replace(annotation.text, f" [{index+1}]")
+        content.value = content.value.replace(annotation.text, f" [{index+1}]")
 
         # Gather citations based on annotation attributes
         try:
@@ -117,7 +117,7 @@ def process_citations(message):
             # Ignore if there are problems with extracting citation information
             pass
 
-    return message.value, citations, cited_files
+    return content.value, citations, cited_files
 
 
 def get_file_path(number, length=20):
@@ -165,26 +165,29 @@ def show_messages(message_data_list):
 
     for message in reversed(message_data_list):
         if message.file_ids:
-            file_names = [get_file_name_from_id(id) for id in message.file_ids]
-            file_names = ", ".join(file_names)
-            file_names = f" $\,$(:blue[{file_names}])"
+            msg_files = [get_file_name_from_id(id) for id in message.file_ids]
+            msg_files = ", ".join(msg_files)
+            msg_files = f" $\,$(:blue[{msg_files}])"
         else:
-            file_names = ""
+            msg_files = ""
 
         if len(message.content) > 1:
-            st.error("Unexpected!", icon="🚨")
+            st.error(
+                "Having more than one element in the content list is unexpected!",
+                icon="🚨"
+            )
 
         message_content = message.content[0]
         if message.role == "user":
             with st.chat_message("user"):
-                st.markdown(message_content.text.value + file_names)
+                st.markdown(message_content.text.value + msg_files)
         elif hasattr(message_content, "text"):
             # Print the citation information
             content_text, citations, cited_files = process_citations(
                 message_content.text
             )
             with st.chat_message("assistant"):
-                st.markdown(content_text + file_names)
+                st.markdown(content_text + msg_files)
                 if citations:
                     with st.expander("Source(s)"):
                         for citation, file in zip(citations, cited_files):
@@ -194,7 +197,8 @@ def show_messages(message_data_list):
 def show_thread_messages(thread_id, no_of_messages="All"):
     """
     Show the most recent 'no_of_messages' messages of a given thread.
-    If 'no_of_messages' is None, all the messages are shown.
+    The argument 'no_of_messages' is a positive integer or "All, and
+    if 'no_of_messages' is "All", all the messages are shown.
     """
 
     messages = st.session_state.client.beta.threads.messages.list(
@@ -877,7 +881,7 @@ def openai_assistants():
     load_thread_info_file()
 
     with st.sidebar:
-        st.write("**Model**")
+        st.write("**Models**")
         model = st.radio(
             label="$\\textsf{Models}$",
             options=("gpt-3.5-turbo-1106", "gpt-4-1106-preview"),
@@ -937,7 +941,7 @@ def openai_assistants():
             delete_thread(thread_index)
             st.rerun()
 
-        st.write("**Messages to show**")
+        st.write("**Prev. Messages to Show**")
         st.session_state.no_of_messages = st.radio(
             label="$\\textsf{Messages to show}$",
             options=("All", 10, 6),
