@@ -13,6 +13,18 @@ from io import BytesIO
 from audio_recorder_streamlit import audio_recorder
 
 
+class NamedBytesIO(BytesIO):
+    def __init__(self, buffer, name: str):
+        super().__init__(buffer)
+        self.name = name
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()  # Close the buffer and free up the resources
+
+
 def check_api_key(api_key):
     """
     Return True if the given OpenAI api_key is valid.
@@ -55,7 +67,7 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
         run = st.session_state.client.beta.threads.runs.create(
             thread_id=thread_id, assistant_id=assistant_id, model=model
         )
-    except Exception as e:
+    except APIError as e:
         st.error(f"An error occurred: {e}", icon="🚨")
         return None
 
@@ -139,7 +151,7 @@ def get_file_name_from_id(file_id):
     try:
         file = st.session_state.client.files.retrieve(file_id)
         file_name= file.filename
-    except Exception:
+    except APIError:
         file_name = "deleted file"
     return file_name
 
@@ -321,13 +333,13 @@ def delete_file(file_id):
                             assistant_id = assistant.id,
                             file_id=file_id
                         )
-                    except Exception as e:
+                    except APIError as e:
                         # st.error(f"An error occurred: {e}", icon="🚨")
                         pass
 
     try:
         client.files.delete(file_id)
-    except Exception as e:
+    except APIError as e:
         # st.error(f"An error occurred: {e}", icon="🚨")
         pass
 
@@ -355,24 +367,6 @@ def delete_thread(thread_index):
         create_new_thread()
 
 
-def upload_to_openai(file_path, purpose="assistants"):
-    """
-    Upload a file to OpenAI and return its file ID.
-    Return None if there are errors.
-    """
-
-    try:
-        with open(file_path, "rb") as file:
-            upload_file = st.session_state.client.files.create(
-                file=file, purpose=purpose
-            )
-        return upload_file.id
-
-    except Exception as e:
-        st.error(f"An error occurred: {e}", icon="🚨")
-        return None
-
-
 def upload_files(type=None):
     """
     Upload files and return the list of the uploaded file ids.
@@ -389,13 +383,19 @@ def upload_files(type=None):
 
     if uploaded_files:
         uploaded_file_ids = []
-        for uploaded_file in uploaded_files:
-            with open(f"{uploaded_file.name}", "wb") as f:
-                f.write(uploaded_file.getbuffer())
-
-            file_id = upload_to_openai(f"{uploaded_file.name}")
-            if file_id is not None:
-                uploaded_file_ids.append(file_id)
+        for file in uploaded_files:
+            # Use BytesIO to read the file content
+            # with BytesIO(file.getbuffer()) as in_memory:
+            with NamedBytesIO(file.getbuffer(), file.name) as in_memory:
+                try:
+                    response = st.session_state.client.files.create(
+                        file=in_memory,
+                        purpose="assistants",
+                    )
+                    uploaded_file_ids.append(response.id)
+                except APIError as e:
+                    st.error(f"An error occurred: {e}", icon="🚨")
+                    return []
         return uploaded_file_ids
     else:
         return []
@@ -477,12 +477,12 @@ def delete_assistant(assistant_id):
     for file_id in assistant.file_ids:
         try:
             st.session_state.client.files.delete(file_id)
-        except Exception as e:
+        except APIError as e:
             # st.error(f"An error occurred: {e}", icon="🚨")
             pass
     try:
         st.session_state.client.beta.assistants.delete(assistant_id)
-    except Exception as e:
+    except APIError as e:
         # st.error(f"An error occurred: {e}", icon="🚨")
         pass
 
@@ -726,13 +726,10 @@ def run_assistant(model, assistant_id, thread_index):
                 st.session_state.file_ids
             )
             update_threads_info()
-        try:
-            message = run_thread(
-                model, assistant_id, thread_id, query, st.session_state.file_ids
-            )
-        except Exception as e:
-            message = None
-            st.error(f"An error occurred: {e}", icon="🚨")
+
+        message = run_thread(
+            model, assistant_id, thread_id, query, st.session_state.file_ids
+        )
 
         st.session_state.file_ids = []
         st.session_state.uploader_key += 1
