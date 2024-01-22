@@ -1,10 +1,14 @@
 # [OpenAi Assistants](https://assistants.streamlit.app/)
 
-* This app presents OpenAI assistants by using OpenAI's Assistants API
+* This app presents OpenAI assistants using OpenAI's Assistants API
   
-  - Assistants, threads, uploaded files and messages can be managed.
+  - Users can create their own custom chat bots or assistants using tools
+    such as retrieval and code interpreter.
 
-  - The model "gpt-3.5-turbo-1106" or "gpt-4-1106-preview" can be used.
+  - Assistants, threads, uploaded files and messages can be managed, enabling
+    creation, modification and deletion.
+
+  - The models "gpt-3.5-turbo-1106" or "gpt-4-1106-preview" can be used.
 
   - Voice recognition is supported.
 
