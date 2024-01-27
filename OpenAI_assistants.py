@@ -183,28 +183,21 @@ def show_messages(message_data_list):
         else:
             msg_files = ""
 
-        if len(message.content) > 1:
-            st.write(message.content[1])
-            # st.error(
-            #     "Having more than one element in the content list is unexpected!",
-            #     icon="🚨"
-            # )
-
-        message_content = message.content[0]
-        if message.role == "user":
-            with st.chat_message("user"):
-                st.markdown(message_content.text.value + msg_files)
-        elif hasattr(message_content, "text"):
-            # Print the citation information
-            content_text, citations, cited_files = process_citations(
-                message_content.text
-            )
-            with st.chat_message("assistant"):
-                st.markdown(content_text + msg_files)
-                if citations:
-                    with st.expander("Source(s)"):
-                        for citation, file in zip(citations, cited_files):
-                            st.markdown(file, help=citation)
+        for message_content in message.content:
+            if message.role == "user":
+                with st.chat_message("user"):
+                    st.markdown(message_content.text.value + msg_files)
+            elif hasattr(message_content, "text"):
+                # Print the citation information
+                content_text, citations, cited_files = process_citations(
+                    message_content.text
+                )
+                with st.chat_message("assistant"):
+                    st.markdown(content_text + msg_files)
+                    if citations:
+                        with st.expander("Source(s)"):
+                            for citation, file in zip(citations, cited_files):
+                                st.markdown(file, help=citation)
 
 
 def show_thread_messages(thread_id, no_of_messages="All"):
