@@ -176,6 +176,7 @@ def show_messages(message_data_list):
     """
 
     for message in reversed(message_data_list):
+        st.write(message)
         if message.file_ids:
             msg_files = [get_file_name_from_id(id) for id in message.file_ids]
             msg_files = ", ".join(msg_files)
