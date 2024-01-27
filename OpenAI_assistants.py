@@ -10,6 +10,7 @@ import pickle
 import hashlib
 from openai import OpenAI, APIError
 from io import BytesIO
+from PIL import Image
 from audio_recorder_streamlit import audio_recorder
 
 
@@ -175,8 +176,7 @@ def show_messages(message_data_list):
     Show the given list of messages.
     """
 
-    from PIL import Image
-
+    client = st.session_state.client
     for message in reversed(message_data_list):
         if message.file_ids:
             msg_files = [get_file_name_from_id(id) for id in message.file_ids]
@@ -202,18 +202,11 @@ def show_messages(message_data_list):
                                 st.markdown(file, help=citation)
             elif hasattr(message_content, "image_file"):
                 file_id = message_content.image_file.file_id
-                client = st.session_state.client
-                api_response = client.files.with_raw_response.retrieve_content(file_id)
-                if api_response.status_code == 200:
-                    content = api_response.content
-                    image_data = BytesIO(content)
+                resp = client.files.with_raw_response.retrieve_content(file_id)
+                if resp.status_code == 200:
+                    image_data = BytesIO(resp.content)
                     img = Image.open(image_data)
                     st.image(img)
-                # file = st.session_state.client.files.retrieve(file_id)
-                # image = Image.open(file.filename)
-                # st.write(file, file.filename)
-                # with BytesIO(file.read()) as in_memory:
-                #     st.image(in_memory)
 
 
 def show_thread_messages(thread_id, no_of_messages="All"):
