@@ -204,8 +204,8 @@ def show_messages(message_data_list):
             elif hasattr(message_content, "image_file"):
                 file_id = message_content.image_file.file_id
                 file = st.session_state.client.files.retrieve(file_id)
-                image = Image.open(file.filename)
-                st.write(file)
+                # image = Image.open(file.filename)
+                st.write(file, file.filename)
                 # with BytesIO(file.read()) as in_memory:
                 #     st.image(in_memory)
 
