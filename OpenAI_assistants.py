@@ -175,6 +175,8 @@ def show_messages(message_data_list):
     Show the given list of messages.
     """
 
+    from PIL import Image
+
     for message in reversed(message_data_list):
         if message.file_ids:
             msg_files = [get_file_name_from_id(id) for id in message.file_ids]
@@ -202,8 +204,8 @@ def show_messages(message_data_list):
             elif hasattr(message_content, "image_file"):
                 file_id = message_content.image_file.file_id
                 file = st.session_state.client.files.retrieve(file_id)
-                st.write(file)
-                # st.image(message_content.image_file.fileid)
+                with BytesIO(file.read()) as in_memory:
+                    st.image(in_memory)
 
 
 def show_thread_messages(thread_id, no_of_messages="All"):
