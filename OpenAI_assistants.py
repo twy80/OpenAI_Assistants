@@ -184,10 +184,11 @@ def show_messages(message_data_list):
             msg_files = ""
 
         if len(message.content) > 1:
-            st.error(
-                "Having more than one element in the content list is unexpected!",
-                icon="🚨"
-            )
+            st.write(message.content[1])
+            # st.error(
+            #     "Having more than one element in the content list is unexpected!",
+            #     icon="🚨"
+            # )
 
         message_content = message.content[0]
         if message.role == "user":
