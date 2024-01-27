@@ -202,9 +202,16 @@ def show_messages(message_data_list):
                                 st.markdown(file, help=citation)
             elif hasattr(message_content, "image_file"):
                 file_id = message_content.image_file.file_id
-                file = st.session_state.client.files.retrieve(file_id)
+                client = st.session_state.client
+                api_response = client.files.with_raw_response.retrieve_content(file_id)
+                if api_response.status_code == 200:
+                    content = api_response.content
+                    image_data = BytesIO(content)
+                    img = Image.open(image_data)
+                    st.image(img)
+                # file = st.session_state.client.files.retrieve(file_id)
                 # image = Image.open(file.filename)
-                st.write(file, file.filename)
+                # st.write(file, file.filename)
                 # with BytesIO(file.read()) as in_memory:
                 #     st.image(in_memory)
 
