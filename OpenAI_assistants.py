@@ -185,7 +185,6 @@ def show_messages(message_data_list):
         else:
             msg_files = ""
 
-        st.write(message)
         for message_content in message.content:
             if message.role == "user":
                 with st.chat_message("user"):
