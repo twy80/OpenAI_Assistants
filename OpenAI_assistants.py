@@ -201,12 +201,15 @@ def show_messages(message_data_list):
                             for citation, file in zip(citations, cited_files):
                                 st.markdown(file, help=citation)
             elif hasattr(message_content, "image_file"):
-                file_id = message_content.image_file.file_id
-                resp = client.files.with_raw_response.retrieve_content(file_id)
-                if resp.status_code == 200:
-                    image_data = BytesIO(resp.content)
-                    img = Image.open(image_data)
-                    st.image(img)
+                try:
+                    file_id = message_content.image_file.file_id
+                    resp = client.files.with_raw_response.retrieve_content(file_id)
+                    if resp.status_code == 200:
+                        image_data = BytesIO(resp.content)
+                        img = Image.open(image_data)
+                        st.image(img)
+                except Exception as e:
+                    st.error(f"An error occurred: {e}", icon="🚨")
 
 
 def show_thread_messages(thread_id, no_of_messages="All"):
