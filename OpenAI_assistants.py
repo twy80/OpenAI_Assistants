@@ -199,6 +199,11 @@ def show_messages(message_data_list):
                         with st.expander("Source(s)"):
                             for citation, file in zip(citations, cited_files):
                                 st.markdown(file, help=citation)
+            elif hasattr(message_content, "image_file"):
+                file_id = message_content.image_file.fileid
+                file = st.session_state.client.files.retrieve(file_id)
+                st.write(file)
+                # st.image(message_content.image_file.fileid)
 
 
 def show_thread_messages(thread_id, no_of_messages="All"):
