@@ -209,6 +209,12 @@ def show_messages(message_data_list):
                         image_data = BytesIO(resp.content)
                         img = Image.open(image_data)
                         st.image(img)
+                    # Add the file id to the list of threads
+                    thread_index = st.session_state.thread_index
+                    st.session_state.threads_list[thread_index]["file_ids"].append(
+                        file_id
+                    )
+                    update_threads_info()
                 except Exception as e:
                     st.error(f"An error occurred: {e}", icon="🚨")
 
