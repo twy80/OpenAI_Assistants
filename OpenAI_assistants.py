@@ -26,6 +26,17 @@ class NamedBytesIO(BytesIO):
         self.close()  # Close the buffer and free up the resources
 
 
+def display_text_with_equations(text):
+    # Replace inline LaTeX equation delimiters \\( ... \\) with $
+    modified_text = text.replace("\\(", "$").replace("\\)", "$")
+
+    # Replace block LaTeX equation delimiters \\[ ... \\] with $$
+    modified_text = modified_text.replace("\\[", "$$").replace("\\]", "$$")
+
+    # Use st.markdown to display the formatted text with equations
+    st.markdown(modified_text)
+
+
 def check_api_key(api_key):
     """
     Return True if the given OpenAI api_key is valid.
@@ -188,14 +199,16 @@ def show_messages(message_data_list):
         for message_content in message.content:
             if message.role == "user":
                 with st.chat_message("user"):
-                    st.markdown(message_content.text.value + msg_files)
+                    # st.markdown(message_content.text.value + msg_files)
+                    display_text_with_equations(message_content.text.value + msg_files)
             elif hasattr(message_content, "text"):
                 # Print the citation information
                 content_text, citations, cited_files = process_citations(
                     message_content.text
                 )
                 with st.chat_message("assistant"):
-                    st.markdown(content_text + msg_files)
+                    # st.markdown(content_text + msg_files)
+                    display_text_with_equations(content_text + msg_files)
                     if citations:
                         with st.expander("Source(s)"):
                             for citation, file in zip(citations, cited_files):
