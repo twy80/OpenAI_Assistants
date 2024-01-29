@@ -26,17 +26,6 @@ class NamedBytesIO(BytesIO):
         self.close()  # Close the buffer and free up the resources
 
 
-def display_text_with_equations(text):
-    # Replace inline LaTeX equation delimiters \\( ... \\) with $
-    modified_text = text.replace("\\(", "$").replace("\\)", "$")
-
-    # Replace block LaTeX equation delimiters \\[ ... \\] with $$
-    modified_text = modified_text.replace("\\[", "$$").replace("\\]", "$$")
-
-    # Use st.markdown to display the formatted text with equations
-    st.markdown(modified_text)
-
-
 def check_api_key(api_key):
     """
     Return True if the given OpenAI api_key is valid.
@@ -180,6 +169,17 @@ def thread_exists(thread_id):
     except APIError:
         # If the thread does not exist, return False
         return False
+
+
+def display_text_with_equations(text):
+    # Replace inline LaTeX equation delimiters \\( ... \\) with $
+    modified_text = text.replace("\\(", "$").replace("\\)", "$")
+
+    # Replace block LaTeX equation delimiters \\[ ... \\] with $$
+    modified_text = modified_text.replace("\\[", "$$").replace("\\]", "$$")
+
+    # Use st.markdown to display the formatted text with equations
+    st.markdown(modified_text)
 
 
 def show_messages(message_data_list):
