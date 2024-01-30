@@ -967,10 +967,10 @@ def openai_assistants():
         st.write("**Prev. Messages to Show**")
         st.session_state.no_of_messages = st.radio(
             label="$\\textsf{Messages to show}$",
-            options=("All", 10, 6),
+            options=("All", 20, 10),
             label_visibility="collapsed",
             horizontal=True,
-            index=1,
+            index=2,
         )
 
         st.write("")
