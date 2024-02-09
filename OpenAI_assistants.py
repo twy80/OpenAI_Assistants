@@ -597,7 +597,7 @@ def update_assistant(assistant_id):
     create an assistant when 'assistant_id' is None
     """
 
-    model_options = ["gpt-3.5-turbo-1106", "gpt-4-1106-preview"]
+    model_options = ["gpt-3.5-turbo-0125", "gpt-4-0125-preview"]
     if assistant_id is None:
         st.write("**:blue[Create your assistant]**")
         model_index = 0
@@ -635,7 +635,7 @@ def update_assistant(assistant_id):
         )
         model = st.radio(
             label="Default models",
-            options=("gpt-3.5-turbo-1106", "gpt-4-1106-preview"),
+            options=("gpt-3.5-turbo-0125", "gpt-4-0125-preview"),
             label_visibility="collapsed",
             index=model_index,
         )
@@ -907,7 +907,7 @@ def openai_assistants():
         st.write("**Models**")
         model = st.radio(
             label="$\\textsf{Models}$",
-            options=("gpt-3.5-turbo-1106", "gpt-4-1106-preview"),
+            options=("gpt-3.5-turbo-0125", "gpt-4-0125-preview"),
             label_visibility="collapsed",
             index=0,
         )
