@@ -668,28 +668,31 @@ def update_assistant(assistant_id):
         form_left, form_right = st.columns(2)
         submitted = form_left.form_submit_button("Submit")
         if submitted:
-            if assistant_id is None:
-                st.session_state.client.beta.assistants.create(
-                    model=model,
-                    name=name,
-                    instructions=instructions,
-                    description=description,
-                    tools=tools,
-                    file_ids=file_ids,
-                )
-            else:
-                st.session_state.client.beta.assistants.update(
-                    assistant_id=assistant_id,
-                    model=model,
-                    name=name,
-                    instructions=instructions,
-                    description=description,
-                    tools=tools,
-                    file_ids=file_ids,
-                )
-            set_assistants_list()
-            st.session_state.manage_assistant_app = "show"
-            st.rerun()
+            try:
+                if assistant_id is None:
+                    st.session_state.client.beta.assistants.create(
+                        model=model,
+                        name=name,
+                        instructions=instructions,
+                        description=description,
+                        tools=tools,
+                        file_ids=file_ids,
+                    )
+                else:
+                    st.session_state.client.beta.assistants.update(
+                        assistant_id=assistant_id,
+                        model=model,
+                        name=name,
+                        instructions=instructions,
+                        description=description,
+                        tools=tools,
+                        file_ids=file_ids,
+                    )
+                set_assistants_list()
+                st.session_state.manage_assistant_app = "show"
+                st.rerun()
+            except APIError as e:
+                st.error(f"An error occurred: {e}", icon="🚨")
 
         back_to_manage = form_right.form_submit_button("Back")
         if back_to_manage:
