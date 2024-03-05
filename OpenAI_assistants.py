@@ -211,7 +211,7 @@ def show_messages(message_data_list):
     thread_index = st.session_state.thread_index
     file_id_list = st.session_state.threads_list[thread_index]["file_ids"]
 
-    for message in reversed(message_data_list):
+    for message in message_data_list:
         if message.file_ids:
             msg_files = [get_file_name_from_id(id) for id in message.file_ids]
             msg_files = ", ".join(msg_files)
@@ -260,7 +260,8 @@ def show_thread_messages(thread_id, no_of_messages="All"):
     """
 
     messages = st.session_state.client.beta.threads.messages.list(
-        thread_id=thread_id
+        thread_id=thread_id,
+        order="asc"
     )
 
     if no_of_messages == "All":
@@ -269,7 +270,7 @@ def show_thread_messages(thread_id, no_of_messages="All"):
         st.error("'no_of_messages' is a positive integer or 'All'", icon="🚨")
         return None
 
-    show_messages(messages.data[:no_of_messages])
+    show_messages(messages.data[-no_of_messages:])
 
 
 def name_thread(thread_id):
