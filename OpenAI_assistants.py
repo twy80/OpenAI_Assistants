@@ -864,10 +864,7 @@ def openai_assistants():
                 """
                 **Enter your OpenAI API key in the sidebar**
 
-                [Get an OpenAI API key](https://platform.openai.com/api-keys)
-                The GPT-4 API can be accessed by those who have made
-                a payment of $1 to OpenAI (a strange policy) at the time of
-                writing this code.
+                Get an OpenAI API key [here](https://platform.openai.com/api-keys).
                 """
             )
             st.stop()
