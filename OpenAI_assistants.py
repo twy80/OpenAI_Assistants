@@ -794,10 +794,11 @@ def run_assistant(model, assistant_id):
     # st.session_state.file_ids = upload_files(["pdf", "txt"])
     st.session_state.file_ids = upload_files()
     st.markdown(
-        "<small>If you press :blue[Delete this thread] in the sidebar, </small>"
-        + "<small>all the files used in the thread will be deleted </small>"
-        + "<small>together with the thread.</small>",
-        unsafe_allow_html=True,
+        f"<small>Thread ID: :blue[{thread_id}].</small>",
+        # "<small>If you press :blue[Delete this thread] in the sidebar, </small>"
+        # "<small>all the files used in the thread will be deleted </small>"
+        # "<small>together with the thread.</small>",
+        unsafe_allow_html=True
     )
 
     # Use your microphone
