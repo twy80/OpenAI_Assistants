@@ -367,19 +367,18 @@ def delete_file(file_id):
     """
 
     client = st.session_state.client
-    assistants = st.session_state.client.beta.assistants.list(
-        order="desc",
-        limit="20",
-    ).data
-
-    if assistants:
-        for assistant in assistants:
-            for id in assistant.file_ids:
-                if id == file_id:
+    assistant_ids = [
+        id for (_, id) in st.session_state.assistants_name_id
+    ]
+    if assistant_ids:
+        for id in assistant_ids:
+            assistant = st.session_state.client.beta.assistants.retrieve(id)
+            for assistant_file_id in assistant.file_ids:
+                if assistant_file_id == file_id:
                     try:
                         # Delete the association with assistants
                         client.beta.assistants.files.delete(
-                            assistant_id = assistant.id,
+                            assistant_id = id,
                             file_id=file_id
                         )
                     except APIError as e:
@@ -509,9 +508,10 @@ def set_assistants_list():
         limit="20",
     ).data
     if assistants:
-        st.session_state.assistants_name_id = [
+        unsorted = [
             (assistant.name, assistant.id) for assistant in assistants
         ]
+        st.session_state.assistants_name_id = sorted(unsorted, key=lambda x: x[0])
     else:
         st.session_state.assistants_name_id = []
         st.session_state.run_assistants = False
