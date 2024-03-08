@@ -49,7 +49,11 @@ def tavily_search(query):
     """
 
     tavily_client = TavilyClient(api_key=st.secrets["tavily_api_key"])
-    search_result = tavily_client.get_search_context(query, search_depth="advanced")
+    search_result = tavily_client.get_search_context(
+        query,
+        search_depth="advanced",
+        max_tokens=8192
+    )
 
     return search_result
 
@@ -124,11 +128,15 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
                 st.error(f"The API request has {run.status}.", icon="🚨")
                 return None
             elif run.status == "requires_action":
-                run = submit_tool_outputs(
-                    thread_id,
-                    run.id,
-                    run.required_action.submit_tool_outputs.tool_calls
-                )
+                try:
+                    run = submit_tool_outputs(
+                        thread_id,
+                        run.id,
+                        run.required_action.submit_tool_outputs.tool_calls
+                    )
+                except Exception as e:
+                    st.error(f"An error occurred: {e}", icon="🚨")
+                    return None
 
     messages = st.session_state.client.beta.threads.messages.list(
         thread_id=thread_id,
