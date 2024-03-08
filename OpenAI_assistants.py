@@ -367,18 +367,19 @@ def delete_file(file_id):
     """
 
     client = st.session_state.client
-    assistant_ids = [
-        id for (_, id) in st.session_state.assistants_name_id
-    ]
-    if assistant_ids:
-        for id in assistant_ids:
-            assistant = st.session_state.client.beta.assistants.retrieve(id)
+    assistants = st.session_state.client.beta.assistants.list(
+        order="desc",
+        limit="20",
+    ).data
+
+    if assistants:
+        for assistant in assistants:
             for assistant_file_id in assistant.file_ids:
                 if assistant_file_id == file_id:
                     try:
                         # Delete the association with assistants
                         client.beta.assistants.files.delete(
-                            assistant_id = id,
+                            assistant_id = assistant.id,
                             file_id=file_id
                         )
                     except APIError as e:
@@ -796,8 +797,11 @@ def run_assistant(model, assistant_id):
 
     # st.session_state.file_ids = upload_files(["pdf", "txt"])
     st.session_state.file_ids = upload_files()
+    assistants_name_id = st.session_state.assistants_name_id
+    assistant_index = st.session_state.assistant_index
     st.markdown(
-        f"<small>Thread ID: :blue[{thread_id}].</small>",
+        f"<small>Thread ID: :blue[{thread_id}] </small>"
+        f"<small>(currently by :blue[{assistants_name_id[assistant_index][0]}]).</small>",
         unsafe_allow_html=True
     )
 
@@ -949,7 +953,9 @@ def openai_assistants():
             )
             index = assistant_names.index(assistant_name)
             assistant_id = st.session_state.assistants_name_id[index][1]
-            st.session_state.assistant_index = index
+            if index != st.session_state.assistant_index:
+                st.session_state.assistant_index = index
+                st.rerun()
 
             if st.session_state.run_assistants:
                 run_or_manage = "$\;$Manage assistants$\;$"
