@@ -801,7 +801,7 @@ def run_assistant(model, assistant_id):
     assistant_index = st.session_state.assistant_index
     st.markdown(
         f"<small>Thread ID: :blue[{thread_id}] </small>"
-        f"<small>(currently by :blue[{assistants_name_id[assistant_index][0]}]).</small>",
+        f"<small>(currently with :blue[{assistants_name_id[assistant_index][0]}]).</small>",
         unsafe_allow_html=True
     )
 
