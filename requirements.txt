@@ -1,4 +1,5 @@
 openai
 streamlit
 requests
+tavily-python
 audio_recorder_streamlit
