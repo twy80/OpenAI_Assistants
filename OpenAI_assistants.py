@@ -8,9 +8,11 @@ import time
 import requests
 import pickle
 import hashlib
+import json
 from openai import OpenAI, APIError
 from io import BytesIO
 from PIL import Image
+from tavily import TavilyClient
 from audio_recorder_streamlit import audio_recorder
 
 
@@ -39,6 +41,45 @@ def check_api_key(api_key):
     )
 
     return response.status_code == 200
+
+
+def tavily_search(query):
+    """
+    Perform a search using the Tavily API based on the provided query.
+    """
+
+    tavily_client = TavilyClient(api_key=st.secrets["tavily_api_key"])
+    search_result = tavily_client.get_search_context(query, search_depth="advanced")
+
+    return search_result
+
+
+def submit_tool_outputs(thread_id, run_id, tools_to_call):
+    """
+    Submit tool outputs for a specific thread and run
+    using the provided list of tools to call.
+    """
+
+    client = st.session_state.client
+    tool_output_array = []
+
+    for tool in tools_to_call:
+        output = None
+        tool_call_id = tool.id
+        function_name = tool.function.name
+        function_args = tool.function.arguments
+
+        if function_name == "tavily_search":
+            output = tavily_search(query=json.loads(function_args)["query"])
+
+        if output:
+            tool_output_array.append({"tool_call_id": tool_call_id, "output": output})
+
+    return client.beta.threads.runs.submit_tool_outputs(
+        thread_id=thread_id,
+        run_id=run_id,
+        tool_outputs=tool_output_array
+    )
 
 
 def run_thread(model, assistant_id, thread_id, query, file_ids):
@@ -82,6 +123,12 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
             if run.status in {"failed", "expired"}:
                 st.error(f"The API request has {run.status}.", icon="🚨")
                 return None
+            elif run.status == "requires_action":
+                run = submit_tool_outputs(
+                    thread_id,
+                    run.id,
+                    run.required_action.submit_tool_outputs.tool_calls
+                )
 
     messages = st.session_state.client.beta.threads.messages.list(
         thread_id=thread_id,
@@ -568,7 +615,10 @@ def show_assistant(assistant_id):
 
     client = st.session_state.client
     assistant = client.beta.assistants.retrieve(assistant_id)
-    tools = [tool.type for tool in assistant.tools]
+    tools = []
+    for tool in assistant.tools:
+        tool_name = tool.type if tool.type != "function" else tool.function.name
+        tools.append(tool_name)
     files = [client.files.retrieve(file_id) for file_id in assistant.file_ids]
     file_ids, file_names = [], []
 
@@ -590,16 +640,14 @@ def show_assistant(assistant_id):
 
     if assistant_id is not None:
         st.write(
-            f"""
-            - :blue[Name]: {assistant.name}
-            - :blue[Default Model]: {assistant.model}
-            - :blue[ID]: {assistant.id}
-            - :blue[Instructions]: {assistant.instructions}
-            - :blue[Description]: {assistant.description}
-            - :blue[Tool(s)]: {", ".join(tools)}
-            - :blue[File Name(s)]: {", ".join(file_names)}
-            - :blue[File ID(s)]: {", ".join(file_ids)}
-            """
+            f"- :blue[Name]: {assistant.name}\n"
+            f"- :blue[Default Model]: {assistant.model}\n"
+            f"- :blue[ID]: {assistant.id}\n"
+            f"- :blue[Instructions]: {assistant.instructions}\n"
+            f"- :blue[Description]: {assistant.description}\n"
+            f"- :blue[Tool(s)]: {', '.join(tools)}\n"
+            f"- :blue[File Name(s)]: {', '.join(file_names)}\n"
+            f"- :blue[File ID(s)]: {', '.join(file_ids)}"
         )
         left, right = st.columns(2)
         if left.button(label="Modify the assistant"):
@@ -621,6 +669,25 @@ def update_assistant(assistant_id):
     create an assistant when 'assistant_id' is None
     """
 
+    query_description = (
+        "The search query to use. For example: 'Latest news on Nvidia stock performance'"
+    )
+    tavily_search = {
+        "type": "function",
+        "function": {
+            "name": "tavily_search",
+            "description": "Get information on recent events from the web.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": query_description},
+                },
+                "required": ["query"]
+            }
+        }
+    }
+    functions = {"tavily_search": tavily_search}
+
     model_options = ["gpt-3.5-turbo-0125", "gpt-4-0125-preview"]
     if assistant_id is None:
         st.write("**:blue[Create your assistant]**")
@@ -641,7 +708,10 @@ def update_assistant(assistant_id):
         assistant_name_value = assistant.name
         instructions_value = assistant.instructions
         description_value = assistant.description
-        tools_value = [tool.type for tool in assistant.tools]
+        tools_value = []
+        for tool in assistant.tools:
+            tool_name = tool.type if tool.type != "function" else tool.function.name
+            tools_value.append(tool_name)
         file_ids_value = assistant.file_ids
 
     with st.form("Submit"):
@@ -675,15 +745,21 @@ def update_assistant(assistant_id):
             value=description_value,
             label_visibility="collapsed",
         )
-        st.write("**Tools** ('function calling' will be supported later.)")
-        tool_options = ["retrieval", "code_interpreter"]
+        st.write("**Tools** (:blue[tavily_search] by 'function calling')")
+        tool_options = ["retrieval", "code_interpreter", "tavily_search"]
         tool_names = st.multiselect(
             label="assistant tools",
             options=tool_options,
             default=tools_value,
             label_visibility="collapsed",
         )
-        tools = [{"type": tool_name} for tool_name in tool_names]
+        tools = []
+        for tool_name in tool_names:
+            if tool_name in ("retrieval", "code_interpreter"):
+                tool = {"type": tool_name}
+            else:
+                tool = functions[tool_name]
+            tools.append(tool)
         st.write("**File(s)**$\,$ (to be added)")
         file_ids = upload_files()
         if assistant_id:
