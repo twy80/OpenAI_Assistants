@@ -269,9 +269,13 @@ def show_messages(message_data_list):
 
     for message in message_data_list:
         if message.file_ids:
-            msg_files = [get_file_name_from_id(id) for id in message.file_ids]
-            msg_files = ", ".join(msg_files)
-            msg_files = f" $\,$(:blue[{msg_files}])"
+            msg_files = []
+            for file_id in message.file_ids:
+                msg_files.append(
+                    f"[{get_file_name_from_id(file_id)}]" +
+                    f"(https://platform.openai.com/files/{file_id})"
+                )
+            msg_files = " (" + ", ".join(msg_files) + ")"
         else:
             msg_files = ""
 
@@ -909,6 +913,83 @@ def run_assistant(model, assistant_id):
             st.rerun()
 
 
+# Sample instructions
+sample_instructions = """
+:blue[Search Only]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using search results from the internet through the 'tavily_search'
+function. Your answers should be solely based on information from the internet,
+not from your general knowledge. Use markdown syntax and include relevant URL
+sources following MLA format. Should the information not be available through
+the 'tavily_search' function, please inform the human explicitly that the
+answer could not be found.
+
+:blue[Search]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using 1) search results from the internet through the
+'tavily_search' function or 2) your general knowledge. You must inform
+the human of the basis of your answers, i.e., whether your answers are
+based on 1) or 2). Use markdown syntax and include relevant URL sources
+following MLA format. Should the information not be available through
+the 'tavily_search' function or your general knowledge, please inform
+the human explicitly that the answer could not be found.
+
+:blue[Retrieval Only]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using information from the uploaded document. Your answers
+should be solely based on information from the uploaded documents,
+not from your general knowledge. Use markdown syntax and include relevant
+sources following MLA format. Should the information not be available
+through the uploaded documents, please inform the human explicitly that
+the answer could not be found.
+
+:blue[Retrieval]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using 1) information from the uploaded documents or 2) your
+general knowledge. You must inform the human of the basis of your
+answers, i.e., whether your answers are based on 1) or 2). Use markdown
+syntax and include relevant sources following MLA format. Should
+the information not be available through the uploaded documents or
+your general knowledge, please inform the human explicitly that
+the answer could not be found.
+
+:blue[Retrieval & Search]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using 1) information from the uploaded documents, 2) search
+results from the internet through the 'tavily_search' function,
+or 3) your general knowledge. You must inform the human of the basis
+of your answers, i.e., whether your answers are based on 1), 2), or 3).
+Use markdown syntax and include relevant sources, like URLs, following
+MLA format. Should the information not be available through the
+uploaded documents, the 'tavily_search' function, or your general
+knowledge, please inform the human explicitly that the answer could
+not be found.
+
+:blue[Python Assistant]:
+
+You specialize in Python programming as a coding assistant. Your task
+is to write Python code that fulfills the user's requirements.
+Additionally, if given the user's code, carefully analyze it to:
+
+1. Identify any errors or bugs.
+2. Suggest ways for optimizing code efficiency and structure.
+3. Recommend enhancements to improve code readability and maintainability.
+
+Run code whenever necessary to verify its functionality and to identify
+potential improvements. Your feedback should aim to help the user enhance
+their coding skills and adopt best coding practices. If your response
+includes information obtained through the 'tavily_search' function,
+please include relevant URL sources following MLA format. Your primary
+goal is to assist users in becoming more proficient and efficient Python
+developers.
+"""
+
+
 def openai_assistants():
     """
     This main function presents OpenAI assistants by managing assistants,
@@ -963,6 +1044,8 @@ def openai_assistants():
                 Get an OpenAI API key [here](https://platform.openai.com/api-keys).
                 """
             )
+            with st.expander("Sample Assistant Instructions"):
+                st.markdown(sample_instructions)
             st.stop()
     else:
         st.info("**Enter the correct password in the sidebar**")
@@ -1086,7 +1169,7 @@ def openai_assistants():
 
         st.write(
             "**Thread ID** "
-            "<small>(for recovery only)</small>", unsafe_allow_html=True
+            "<small>(for Unlisted Thread)</small>", unsafe_allow_html=True
         )
         thread_id_input = st.text_input(
             label="$\\textsf{Thread ID}$",
