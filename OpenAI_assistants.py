@@ -400,19 +400,25 @@ def update_threads_info():
     save_thread_info_file()
 
 
-def create_new_thread():
+def get_thread(thread_id=None):
     """
-    Create a new thread, and add it to the top of the threads list containing
-    the thread ids, names and a list of file ids. The name of this new thread
-    is "No name yet".
+    Get the thread with the given ID, and add it to the top of the threads list
+    containing the thread ids, names and a list of file ids. If the given ID is
+    None, a new thread is created. The name of this new thread is "No name yet",
+    which will be replaced by a proper name when the thread is used.
     """
 
-    thread = st.session_state.client.beta.threads.create()
+    if thread_id is None:
+        thread = st.session_state.client.beta.threads.create()
+        thread_id = thread.id
+        thread_name = "No name yet"
+    else:
+        thread_name = name_thread(thread_id)
+
     st.session_state.threads_list.insert(
-        0, {"id": thread.id, "name": "No name yet", "file_ids": []}
+        0, {"id": thread_id, "name": thread_name, "file_ids": []}
     )
     st.session_state.thread_index = 0
-
     update_threads_info()
 
 
@@ -468,7 +474,7 @@ def delete_thread(thread_index):
         st.session_state.thread_index = 0
         update_threads_info()
     else:
-        create_new_thread()
+        get_thread(None)
 
 
 def upload_files(type=None):
@@ -482,7 +488,7 @@ def upload_files(type=None):
         type=type,
         accept_multiple_files=True,
         label_visibility="collapsed",
-        key=st.session_state.uploader_key,
+        key="upload" + str(st.session_state.uploader_key),
     )
 
     if uploaded_files:
@@ -695,6 +701,7 @@ def update_assistant(assistant_id):
         }
     }
     functions = {"tavily_search": tavily_search}
+    available_tools = ["retrieval", "code_interpreter", "tavily_search"]
 
     model_options = ["gpt-3.5-turbo-0125", "gpt-4-0125-preview"]
     if assistant_id is None:
@@ -754,7 +761,7 @@ def update_assistant(assistant_id):
             label_visibility="collapsed",
         )
         st.write("**Tools** (:blue[tavily_search] by 'function calling')")
-        tool_options = ["retrieval", "code_interpreter", "tavily_search"]
+        tool_options = available_tools
         tool_names = st.multiselect(
             label="assistant tools",
             options=tool_options,
@@ -979,6 +986,9 @@ def openai_assistants():
     if "uploader_key" not in st.session_state:
         st.session_state.uploader_key = 0
 
+    if "thread_id_input_key" not in st.session_state:
+        st.session_state.thread_id_input_key = 0
+
     # Set the file name for storing thread information
     if "thread_info_pickle" not in st.session_state:
         st.session_state.thread_info_pickle = get_file_path(
@@ -1006,7 +1016,7 @@ def openai_assistants():
 
     if not os.path.exists(st.session_state.thread_info_pickle):
         # Create a thread and save the corresponing session state to pickle
-        create_new_thread()
+        get_thread(None)
 
     # Load st.session_state.thread_dictionary from pickle
     load_thread_info_file()
@@ -1025,12 +1035,12 @@ def openai_assistants():
             name for (name, _) in st.session_state.assistants_name_id
         ]
         assistant_names = make_unique_names(assistant_names)
-        st.write("**Assistant(s)**")
+        st.write("**Assistant Names**")
         if assistant_names:
             if st.session_state.assistant_index >= len(assistant_names):
                 st.session_state.assistant_index = 0
             assistant_name = st.selectbox(
-                label="$\\textsf{Assistant(s)}$",
+                label="$\\textsf{Assistant Names}$",
                 options=assistant_names,
                 label_visibility="collapsed",
                 index=st.session_state.assistant_index,
@@ -1055,23 +1065,44 @@ def openai_assistants():
             st.session_state.run_assistants = False
             assistant_id = None
 
-        st.write("**Thread(s)**")
+        st.write("**Thread Names**")
         thread_name = st.selectbox(
-            label="$\\textsf{Thread(s)}$",
+            label="$\\textsf{Thread Names}$",
             options=st.session_state.thread_names,
             label_visibility="collapsed",
+            index=st.session_state.thread_index
         )
-        st.write(
-            "<small>Threads that have been inactive for 60 days will be deleted.</small>",
-            unsafe_allow_html=True,
-        )
-
         thread_index = st.session_state.thread_names.index(thread_name)
+        if thread_index != st.session_state.thread_index:
+            st.session_state.thread_index = thread_index
+            st.rerun()
+
         thread_id = st.session_state.threads_list[thread_index]["id"]
         if thread_exists(thread_id):
             st.session_state.thread_index = thread_index
         else:
             delete_thread(thread_index)
+            st.rerun()
+
+        st.write("**Thread ID**")
+        thread_id_input = st.text_input(
+            label="$\\textsf{Thread ID}$",
+            value="",
+            label_visibility="collapsed",
+            key="text_input" + str(st.session_state.thread_id_input_key)
+        )
+        if thread_id := thread_id_input.strip():
+            if thread_exists(thread_id):
+                found = False
+                for index, id_name in enumerate(st.session_state.threads_list):
+                    if thread_id == id_name["id"]:
+                        st.session_state.thread_index = index
+                        found = True
+                        break
+                if not found:
+                    get_thread(thread_id)
+
+            st.session_state.thread_id_input_key += 1
             st.rerun()
 
         st.write("**Prev. Messages to Show**")
@@ -1086,7 +1117,8 @@ def openai_assistants():
         st.write("")
         st.button(
             label="Create a new thread",
-            on_click=create_new_thread,
+            on_click=get_thread,
+            args=(None,)
         )
         st.button(
             label="$\:\,$Delete this thread$\:\,$",
