@@ -1084,7 +1084,10 @@ def openai_assistants():
             delete_thread(thread_index)
             st.rerun()
 
-        st.write("**Thread ID**")
+        st.write(
+            "**Thread ID** "
+            "<small>(for recovery only)</small>", unsafe_allow_html=True
+        )
         thread_id_input = st.text_input(
             label="$\\textsf{Thread ID}$",
             value="",
@@ -1139,7 +1142,7 @@ def openai_assistants():
             "<small>[ChatGPT (RAG) & DALL·E](https://chatgpt-dalle.streamlit.app/)  \n</small>",
             "<small>[TWY's Playground](https://twy-playground.streamlit.app/)  \n</small>",
             "<small>[Differential equations](https://diff-eqn.streamlit.app/)</small>",
-            unsafe_allow_html=True,
+            unsafe_allow_html=True
         )
 
     if st.session_state.run_assistants:
