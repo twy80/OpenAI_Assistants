@@ -673,7 +673,6 @@ def show_assistant(assistant_id):
             st.rerun()
         if right.button(label="Delete the assistant"):
             delete_assistant(assistant_id)
-            set_assistants_list()
             st.rerun()
     else:
         st.write("No assistant yet")
