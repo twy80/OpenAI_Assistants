@@ -901,7 +901,8 @@ def run_assistant(model, assistant_id):
     assistant_index = st.session_state.assistant_index
     st.markdown(
         f"<small>Thread ID: :blue[{thread_id}] </small>"
-        f"<small>(currently with :blue[{assistants_name_id[assistant_index][0]}]).</small>",
+        f"<small>(currently with :blue[{assistants_name_id[assistant_index][0]}] </small>"
+        f"<small>and :blue[{model}])</small>",
         unsafe_allow_html=True
     )
 
@@ -974,7 +975,7 @@ def openai_assistants():
             )
             st.info(
                 """
-                **Which information is saved where?**
+                **Which information is stored where?**
 
                 The assistants, threads, messages, and run objects are all
                 stored on OpenAI. In the Streamlit server where this app
