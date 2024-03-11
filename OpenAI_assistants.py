@@ -573,6 +573,7 @@ def set_assistants_list():
         order="desc",
         limit="20",
     ).data
+
     if assistants:
         unsorted = [
             (assistant.name, assistant.id) for assistant in assistants
@@ -673,6 +674,7 @@ def show_assistant(assistant_id):
             st.rerun()
         if right.button(label="Delete the assistant"):
             delete_assistant(assistant_id)
+            set_assistants_list()
             st.rerun()
     else:
         st.write("No assistant yet")
@@ -924,6 +926,46 @@ def openai_assistants():
     threads, messages, and files.
     """
 
+    if "thread_index" not in st.session_state:
+        st.session_state.thread_index = 0
+
+    if "threads_list" not in st.session_state:
+        st.session_state.threads_list = []
+
+    if "thread_names" not in st.session_state:
+        st.session_state.thread_names = []
+
+    if "no_of_messages" not in st.session_state:
+        st.session_state.no_of_messages = "All"
+
+    if "file_ids" not in st.session_state:
+        st.session_state.file_ids = []
+
+    if "uploader_key" not in st.session_state:
+        st.session_state.uploader_key = 0
+
+    if "thread_id_input_key" not in st.session_state:
+        st.session_state.thread_id_input_key = 0
+
+    if "run_assistants" not in st.session_state:
+        st.session_state.run_assistants = True
+
+    if "assistant_index" not in st.session_state:
+        st.session_state.assistant_index = 0
+
+    if "assistants_name_id" not in st.session_state:
+        st.session_state.assistants_name_id = []
+
+    if "audio_bytes" not in st.session_state:
+        st.session_state.audio_bytes = None
+
+    if "text_from_audio" not in st.session_state:
+        st.session_state.text_from_audio = None
+
+    # Choose app for manage_assistants()
+    if "manage_assistant_app" not in st.session_state:
+        st.session_state.manage_assistant_app = "show"
+
     st.write("## 📚 OpenAI Assistants")
     st.write("")
 
@@ -963,7 +1005,8 @@ def openai_assistants():
             )
             # Set the variable st.session_state.assistants_name_id
             # containing assistant names and ids
-            set_assistants_list()
+            if not st.session_state.assistants_name_id:
+                set_assistants_list()
         else:
             st.info(
                 """
@@ -993,51 +1036,11 @@ def openai_assistants():
         st.info("**Enter the correct password in the sidebar**")
         st.stop()
 
-    if "thread_index" not in st.session_state:
-        st.session_state.thread_index = 0
-
-    if "threads_list" not in st.session_state:
-        st.session_state.threads_list = []
-
-    if "thread_names" not in st.session_state:
-        st.session_state.thread_names = []
-
-    if "no_of_messages" not in st.session_state:
-        st.session_state.no_of_messages = "All"
-
-    if "file_ids" not in st.session_state:
-        st.session_state.file_ids = []
-
-    if "uploader_key" not in st.session_state:
-        st.session_state.uploader_key = 0
-
-    if "thread_id_input_key" not in st.session_state:
-        st.session_state.thread_id_input_key = 0
-
     # Set the file name for storing thread information
     if "thread_info_pickle" not in st.session_state:
         st.session_state.thread_info_pickle = get_file_path(
             st.session_state.openai_api_key
         )
-
-    if "run_assistants" not in st.session_state:
-        st.session_state.run_assistants = True
-
-    if "assistant_index" not in st.session_state:
-        st.session_state.assistant_index = 0
-
-    if "assistants_name_id" not in st.session_state:
-        st.session_state.assistants_name_id = []
-
-    if "audio_bytes" not in st.session_state:
-        st.session_state.audio_bytes = None
-
-    if "text_from_audio" not in st.session_state:
-        st.session_state.text_from_audio = None
-
-    # Choose app for manage_assistants()
-    if "manage_assistant_app" not in st.session_state:
-        st.session_state.manage_assistant_app = "show"
 
     if not os.path.exists(st.session_state.thread_info_pickle):
         # Create a thread and save the corresponing session state to pickle
