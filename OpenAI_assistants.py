@@ -734,7 +734,7 @@ def update_assistant(assistant_id):
         file_ids_value = assistant.file_ids
 
     with st.form("Submit"):
-        st.write("**Name**")
+        st.write("**Name** $\,$(Do not press Enter.)")
         name = st.text_input(
             label="assistant name",
             value=assistant_name_value,
@@ -764,7 +764,12 @@ def update_assistant(assistant_id):
             value=description_value,
             label_visibility="collapsed",
         )
-        st.write("**Tools** (:blue[tavily_search] by 'function calling')")
+        st.write(
+            """
+            **Tools** $\,$(:blue[tavily_search] is implemented using
+            'function calling'.)
+            """
+        )
         tool_options = available_tools
         tool_names = st.multiselect(
             label="assistant tools",
@@ -913,83 +918,6 @@ def run_assistant(model, assistant_id):
             st.rerun()
 
 
-# Sample instructions
-sample_instructions = """
-:blue[Search Only]:
-
-You are a helpful assistant. Your goal is to provide answers to human
-inquiries using search results from the internet through the 'tavily_search'
-function. Your answers should be solely based on information from the internet,
-not from your general knowledge. Use markdown syntax and include relevant URL
-sources following MLA format. Should the information not be available through
-the 'tavily_search' function, please inform the human explicitly that the
-answer could not be found.
-
-:blue[Search]:
-
-You are a helpful assistant. Your goal is to provide answers to human
-inquiries using 1) search results from the internet through the
-'tavily_search' function or 2) your general knowledge. You must inform
-the human of the basis of your answers, i.e., whether your answers are
-based on 1) or 2). Use markdown syntax and include relevant URL sources
-following MLA format. Should the information not be available through
-the 'tavily_search' function or your general knowledge, please inform
-the human explicitly that the answer could not be found.
-
-:blue[Retrieval Only]:
-
-You are a helpful assistant. Your goal is to provide answers to human
-inquiries using information from the uploaded document. Your answers
-should be solely based on information from the uploaded documents,
-not from your general knowledge. Use markdown syntax and include relevant
-sources following MLA format. Should the information not be available
-through the uploaded documents, please inform the human explicitly that
-the answer could not be found.
-
-:blue[Retrieval]:
-
-You are a helpful assistant. Your goal is to provide answers to human
-inquiries using 1) information from the uploaded documents or 2) your
-general knowledge. You must inform the human of the basis of your
-answers, i.e., whether your answers are based on 1) or 2). Use markdown
-syntax and include relevant sources following MLA format. Should
-the information not be available through the uploaded documents or
-your general knowledge, please inform the human explicitly that
-the answer could not be found.
-
-:blue[Retrieval & Search]:
-
-You are a helpful assistant. Your goal is to provide answers to human
-inquiries using 1) information from the uploaded documents, 2) search
-results from the internet through the 'tavily_search' function,
-or 3) your general knowledge. You must inform the human of the basis
-of your answers, i.e., whether your answers are based on 1), 2), or 3).
-Use markdown syntax and include relevant sources, like URLs, following
-MLA format. Should the information not be available through the
-uploaded documents, the 'tavily_search' function, or your general
-knowledge, please inform the human explicitly that the answer could
-not be found.
-
-:blue[Python Assistant]:
-
-You specialize in Python programming as a coding assistant. Your task
-is to write Python code that fulfills the user's requirements.
-Additionally, if given the user's code, carefully analyze it to:
-
-1. Identify any errors or bugs.
-2. Suggest ways for optimizing code efficiency and structure.
-3. Recommend enhancements to improve code readability and maintainability.
-
-Run code whenever necessary to verify its functionality and to identify
-potential improvements. Your feedback should aim to help the user enhance
-their coding skills and adopt best coding practices. If your response
-includes information obtained through the 'tavily_search' function,
-please include relevant URL sources following MLA format. Your primary
-goal is to assist users in becoming more proficient and efficient Python
-developers.
-"""
-
-
 def openai_assistants():
     """
     This main function presents OpenAI assistants by managing assistants,
@@ -1042,6 +970,20 @@ def openai_assistants():
                 **Enter your OpenAI API key in the sidebar**
 
                 Get an OpenAI API key [here](https://platform.openai.com/api-keys).
+                """
+            )
+            st.info(
+                """
+                **Which information is saved where?**
+
+                The assistants, threads, messages, and run objects are all
+                stored on OpenAI. In the Streamlit server where this app
+                is being deployed, only lists containing IDs and names of
+                those objects are maintained. The problem is that the lists
+                are initialized when the app is rebooted. Users are therefore
+                encouraged to save the thread IDs, as they can be used to
+                recover missing threads. Thread IDs are shown at the bottom
+                of each thread message.
                 """
             )
             with st.expander("Sample Assistant Instructions"):
@@ -1232,6 +1174,83 @@ def openai_assistants():
         run_assistant(model, assistant_id)
     else:
         manage_assistant(assistant_id)
+
+
+# Sample instructions
+sample_instructions = """
+:blue[Search Only]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using search results from the internet through the 'tavily_search'
+function. Your answers should be solely based on information from the internet,
+not from your general knowledge. Use markdown syntax and include relevant URL
+sources following MLA format. Should the information not be available through
+the 'tavily_search' function, please inform the human explicitly that the
+answer could not be found.
+
+:blue[Search]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using 1) search results from the internet through the
+'tavily_search' function or 2) your general knowledge. You must inform
+the human of the basis of your answers, i.e., whether your answers are
+based on 1) or 2). Use markdown syntax and include relevant URL sources
+following MLA format. Should the information not be available through
+the 'tavily_search' function or your general knowledge, please inform
+the human explicitly that the answer could not be found.
+
+:blue[Retrieval Only]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using information from the uploaded document. Your answers
+should be solely based on information from the uploaded documents,
+not from your general knowledge. Use markdown syntax and include relevant
+sources following MLA format. Should the information not be available
+through the uploaded documents, please inform the human explicitly that
+the answer could not be found.
+
+:blue[Retrieval]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using 1) information from the uploaded documents or 2) your
+general knowledge. You must inform the human of the basis of your
+answers, i.e., whether your answers are based on 1) or 2). Use markdown
+syntax and include relevant sources following MLA format. Should
+the information not be available through the uploaded documents or
+your general knowledge, please inform the human explicitly that
+the answer could not be found.
+
+:blue[Retrieval & Search]:
+
+You are a helpful assistant. Your goal is to provide answers to human
+inquiries using 1) information from the uploaded documents, 2) search
+results from the internet through the 'tavily_search' function,
+or 3) your general knowledge. You must inform the human of the basis
+of your answers, i.e., whether your answers are based on 1), 2), or 3).
+Use markdown syntax and include relevant sources, like URLs, following
+MLA format. Should the information not be available through the
+uploaded documents, the 'tavily_search' function, or your general
+knowledge, please inform the human explicitly that the answer could
+not be found.
+
+:blue[Python Assistant]:
+
+You specialize in Python programming as a coding assistant. Your task
+is to write Python code that fulfills the user's requirements.
+Additionally, if given the user's code, carefully analyze it to:
+
+1. Identify any errors or bugs.
+2. Suggest ways for optimizing code efficiency and structure.
+3. Recommend enhancements to improve code readability and maintainability.
+
+Run code whenever necessary to verify its functionality and to identify
+potential improvements. Your feedback should aim to help the user enhance
+their coding skills and adopt best coding practices. If your response
+includes information obtained through the 'tavily_search' function,
+please include relevant URL sources following MLA format. Your primary
+goal is to assist users in becoming more proficient and efficient Python
+developers.
+"""
 
 
 if __name__ == "__main__":
