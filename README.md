@@ -3,8 +3,7 @@
 * This app presents OpenAI assistants using OpenAI's Assistants API
   
   - Users can create their own custom chat bots or assistants using the tools
-    :blue[retrieval], :blue[code_interpreter], and :blue[tavily_search]
-    by function calling.
+    retrieval, code_interpreter, and/or tavily_search by function calling.
 
   - Assistants, threads, uploaded files and messages can be managed, enabling
     creation, modification and deletion.
