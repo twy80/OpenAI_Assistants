@@ -982,8 +982,8 @@ def openai_assistants():
                 those objects are maintained. The problem is that the lists
                 are initialized when the app is rebooted. Users are therefore
                 encouraged to save the thread IDs, as they can be used to
-                recover missing threads. Thread IDs are shown at the bottom
-                of each thread message.
+                recover unlisted (missing) threads. Thread IDs are shown at
+                the bottom of each thread message.
                 """
             )
             with st.expander("Sample Assistant Instructions"):
