@@ -758,7 +758,7 @@ def update_assistant(assistant_id):
             value=instructions_value,
             label_visibility="collapsed",
         )
-        st.write("**Description**")
+        st.write("**Description** $\,$(Optional)")
         description = st.text_area(
             label="description",
             value=description_value,
