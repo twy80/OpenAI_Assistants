@@ -578,7 +578,9 @@ def set_assistants_list():
         unsorted = [
             (assistant.name, assistant.id) for assistant in assistants
         ]
-        st.session_state.assistants_name_id = sorted(unsorted, key=lambda x: x[0])
+        st.session_state.assistants_name_id = sorted(
+            unsorted, key=lambda x: (x[0] is None, x[0])
+        )
     else:
         st.session_state.assistants_name_id = []
         st.session_state.run_assistants = False
@@ -663,7 +665,6 @@ def show_assistant(assistant_id):
             f"- :blue[Default Model]: {assistant.model}\n"
             f"- :blue[ID]: {assistant.id}\n"
             f"- :blue[Instructions]: {assistant.instructions}\n"
-            f"- :blue[Description]: {assistant.description}\n"
             f"- :blue[Tool(s)]: {', '.join(tools)}\n"
             f"- :blue[File Name(s)]: {', '.join(file_names)}\n"
             f"- :blue[File ID(s)]: {', '.join(file_ids)}"
@@ -714,7 +715,6 @@ def update_assistant(assistant_id):
         model_index = 0
         assistant_name_value = ""
         instructions_value = ""
-        description_value = ""
         tools_value = None
     else:
         assistant = st.session_state.client.beta.assistants.retrieve(
@@ -727,7 +727,6 @@ def update_assistant(assistant_id):
             model_index = 0
         assistant_name_value = assistant.name
         instructions_value = assistant.instructions
-        description_value = assistant.description
         tools_value = []
         for tool in assistant.tools:
             tool_name = tool.type if tool.type != "function" else tool.function.name
@@ -757,12 +756,6 @@ def update_assistant(assistant_id):
         instructions = st.text_area(
             label="instructions",
             value=instructions_value,
-            label_visibility="collapsed",
-        )
-        st.write("**Description** $\,$(Optional)")
-        description = st.text_area(
-            label="description",
-            value=description_value,
             label_visibility="collapsed",
         )
         st.write(
@@ -799,7 +792,6 @@ def update_assistant(assistant_id):
                         model=model,
                         name=name,
                         instructions=instructions,
-                        description=description,
                         tools=tools,
                         file_ids=file_ids,
                     )
@@ -809,7 +801,6 @@ def update_assistant(assistant_id):
                         model=model,
                         name=name,
                         instructions=instructions,
-                        description=description,
                         tools=tools,
                         file_ids=file_ids,
                     )
