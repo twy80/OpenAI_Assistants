@@ -1019,14 +1019,14 @@ def openai_assistants():
                 """
                 **Which information is stored where?**
 
-                The assistants, threads, messages, and run objects are all
+                Objects like assistants, threads, and messages are all
                 stored on OpenAI. In the Streamlit server where this app
-                is being deployed, only lists containing IDs and names of
-                those objects are maintained. The problem is that the lists
-                are initialized when the app is rebooted. Users are therefore
-                encouraged to save the thread IDs, as they can be used to
-                recover unlisted (missing) threads. Thread IDs are shown at
-                the bottom of each thread message.
+                is being deployed, only lists containing the IDs and names
+                of the thread objects are maintained. The problem is that
+                the lists are initialized when the app is rebooted. Users
+                are therefore encouraged to save the thread IDs, as they
+                can be used to recover unlisted (missing) threads.
+                Thread IDs are shown at the bottom of each thread message.
                 """
             )
             with st.expander("Sample Assistant Instructions"):
