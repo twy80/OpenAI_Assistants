@@ -1028,9 +1028,9 @@ def openai_assistants():
                 stored on OpenAI. In the Streamlit server where this app
                 is being deployed, only lists containing the IDs and names
                 of the thread objects are maintained. The problem is that
-                the lists are initialized when the app is rebooted. Users
-                are therefore encouraged to save the thread IDs, as they
-                can be used to recover unlisted (missing) threads.
+                the lists may be initialized when the app is rebooted.
+                Users are therefore encouraged to save the thread IDs,
+                as they can be used to recover unlisted (missing) threads.
                 Thread IDs are shown at the bottom of each thread message.
                 """
             )
