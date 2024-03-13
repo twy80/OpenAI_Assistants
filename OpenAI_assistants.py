@@ -1016,7 +1016,7 @@ def openai_assistants():
 
                 Get an OpenAI API key [here](https://platform.openai.com/api-keys)
                 and a Tavily Search API key [here](https://app.tavily.com/). If you
-                do not want to use any search tool, you do not need to enter your
+                do not want to use any search tool, no need to enter your
                 Tavily Search API key.
                 """
             )
