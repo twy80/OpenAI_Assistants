@@ -28,16 +28,16 @@ class NamedBytesIO(BytesIO):
         self.close()  # Close the buffer and free up the resources
 
 
-def check_api_key(api_key):
+def is_openai_api_key_valid(openai_api_key):
     """
     Return True if the given OpenAI api_key is valid.
     """
 
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {openai_api_key}",
     }
     response = requests.get(
-        "https://api.openai.com/v1/engines", headers=headers
+        "https://api.openai.com/v1/models", headers=headers
     )
 
     return response.status_code == 200
@@ -48,7 +48,7 @@ def tavily_search(query):
     Perform a search using the Tavily API based on the provided query.
     """
 
-    tavily_client = TavilyClient(api_key=st.secrets["tavily_api_key"])
+    tavily_client = TavilyClient(api_key=st.session_state.tavily_api_key)
     search_result = tavily_client.get_search_context(
         query,
         search_depth="advanced",
@@ -136,6 +136,9 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
                     )
                 except Exception as e:
                     st.error(f"An error occurred: {e}", icon="🚨")
+                    run = st.session_state.client.beta.threads.runs.cancel(
+                        thread_id=thread_id, run_id=run.id
+                    )
                     return None
 
     messages = st.session_state.client.beta.threads.messages.list(
@@ -965,21 +968,29 @@ def openai_assistants():
         st.write("**API Key Selection**")
         choice_api = st.sidebar.radio(
             label="$\\textsf{API Key Selection}$",
-            options=("Your key", "My key"),
+            options=("Your keys", "My keys"),
             label_visibility="collapsed",
             horizontal=True,
         )
-        if choice_api == "Your key":
-            st.write("**Your API Key**")
+        if choice_api == "Your keys":
+            st.write("**OpenAI API Key**")
             st.session_state.openai_api_key = st.text_input(
-                label="$\\textsf{Your API Key}$",
+                label="$\\textsf{Your OPenAI API Key}$",
                 type="password",
                 placeholder="sk-",
+                label_visibility="collapsed",
+            )
+            st.write("**Tavily Search API Key**")
+            st.session_state.tavily_api_key = st.text_input(
+                label="$\\textsf{Your Tavily API Key}$",
+                type="password",
+                placeholder="tvly-",
                 label_visibility="collapsed",
             )
             authentication = True
         else:
             st.session_state.openai_api_key = st.secrets["openai_api_key"]
+            st.session_state.tavily_api_key = st.secrets["tavily_api_key"]
             stored_pin = st.secrets["user_PIN"]
             st.write("**Password**")
             user_pin = st.text_input(
@@ -990,7 +1001,7 @@ def openai_assistants():
             authentication = user_pin == stored_pin
 
     if authentication:
-        if check_api_key(st.session_state.openai_api_key):
+        if is_openai_api_key_valid(st.session_state.openai_api_key):
             st.session_state.client = OpenAI(
                 api_key=st.session_state.openai_api_key
             )
@@ -1001,9 +1012,12 @@ def openai_assistants():
         else:
             st.info(
                 """
-                **Enter your OpenAI API key in the sidebar**
+                **Enter your OpenAI and Tavily Search API keys in the sidebar**
 
-                Get an OpenAI API key [here](https://platform.openai.com/api-keys).
+                Get an OpenAI API key [here](https://platform.openai.com/api-keys)
+                and a Tavily Search API key [here](https://app.tavily.com/). If you
+                do not want to use any search tool, you do not need to enter your
+                Tavily Search API key.
                 """
             )
             st.info(
