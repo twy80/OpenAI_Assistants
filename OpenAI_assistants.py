@@ -86,6 +86,37 @@ def submit_tool_outputs(thread_id, run_id, tools_to_call):
     )
 
 
+def run_and_wait_for_results(run, thread_id):
+    """
+    Take a run object and its thread id as input, and return True or False
+    depending on whether the run is successfully completed or not.
+    """
+
+    while run.status != "completed":
+        run = st.session_state.client.beta.threads.runs.retrieve(
+            thread_id=thread_id, run_id=run.id
+        )
+        if run.status in {"failed", "expired"}:
+            st.error(f"The API request has {run.status}.", icon="🚨")
+            return False
+        elif run.status == "requires_action":
+            try:
+                run = submit_tool_outputs(
+                    thread_id,
+                    run.id,
+                    run.required_action.submit_tool_outputs.tool_calls
+                )
+            except Exception as e:
+                st.error(f"An error occurred: {e}", icon="🚨")
+                run = st.session_state.client.beta.threads.runs.cancel(
+                    thread_id=thread_id, run_id=run.id
+                )
+                return False
+        time.sleep(0.5)
+
+    return True
+
+
 def run_thread(model, assistant_id, thread_id, query, file_ids):
     """
     Run a conversation thread with an assistant.
@@ -119,40 +150,21 @@ def run_thread(model, assistant_id, thread_id, query, file_ids):
 
     # Periodically retrieve the Run to check status and see if it has completed
     with st.spinner("AI is thinking..."):
-        while run.status != "completed":
-            time.sleep(1)
-            run = st.session_state.client.beta.threads.runs.retrieve(
-                thread_id=thread_id, run_id=run.id
+        if run_and_wait_for_results(run, thread_id):
+            messages = st.session_state.client.beta.threads.messages.list(
+                thread_id=thread_id,
+                order="desc"
             )
-            if run.status in {"failed", "expired"}:
-                st.error(f"The API request has {run.status}.", icon="🚨")
-                return None
-            elif run.status == "requires_action":
-                try:
-                    run = submit_tool_outputs(
-                        thread_id,
-                        run.id,
-                        run.required_action.submit_tool_outputs.tool_calls
-                    )
-                except Exception as e:
-                    st.error(f"An error occurred: {e}", icon="🚨")
-                    run = st.session_state.client.beta.threads.runs.cancel(
-                        thread_id=thread_id, run_id=run.id
-                    )
-                    return None
 
-    messages = st.session_state.client.beta.threads.messages.list(
-        thread_id=thread_id,
-        order="desc"
-    )
+            messages_list = []
+            index = 0
+            while messages.data[index].role == "assistant":
+                messages_list.insert(0, messages.data[index])
+                index += 1
 
-    messages_list = []
-    index = 0
-    while messages.data[index].role == "assistant":
-        messages_list.insert(0, messages.data[index])
-        index += 1
-
-    return messages_list
+            return messages_list
+        else:
+            return None
 
 
 def process_citations(content):
