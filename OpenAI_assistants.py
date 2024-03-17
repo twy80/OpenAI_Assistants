@@ -639,9 +639,27 @@ def read_audio(audio_bytes):
         text = transcript.text
     except Exception as e:
         text = None
-        # st.error(f"An error occurred: {e}", icon="🚨")
+        st.error(f"An error occurred: {e}", icon="🚨")
 
     return text
+
+
+def input_from_mic():
+    """
+    Convert audio input from mic to text and returns it.
+    If there is no audio input, None is returned.
+    """
+
+    audio_bytes = audio_recorder(
+        pause_threshold=3.0, text="Speak", icon_size="2x",
+        recording_color="#e87070", neutral_color="#6aa36f"        
+    )
+
+    if audio_bytes == st.session_state.audio_bytes or audio_bytes is None:
+        return None
+    else:
+        st.session_state.audio_bytes = audio_bytes
+        return read_audio(audio_bytes)
 
 
 def show_assistant(assistant_id):
@@ -875,7 +893,6 @@ def run_assistant(model, assistant_id):
     if query or st.session_state.text_from_audio:
         if st.session_state.text_from_audio:
             query = st.session_state.text_from_audio
-            st.session_state.text_from_audio = None
 
         with st.chat_message("user"):
             st.markdown(query)
@@ -902,6 +919,10 @@ def run_assistant(model, assistant_id):
                 st.session_state.threads_list[thread_index]["name"] = thread_name
                 update_threads_info()
 
+        if st.session_state.text_from_audio:
+            st.session_state.text_from_audio = None
+            st.rerun()
+
     # st.session_state.file_ids = upload_files(["pdf", "txt"])
     st.session_state.file_ids = upload_files()
     assistants_name_id = st.session_state.assistants_name_id
@@ -914,16 +935,9 @@ def run_assistant(model, assistant_id):
     )
 
     # Use your microphone
-    audio_bytes = audio_recorder(
-        pause_threshold=3.0, text="Speak", icon_size="2x",
-        recording_color="#e87070", neutral_color="#6aa36f"        
-    )
-
-    if audio_bytes != st.session_state.audio_bytes:
-        st.session_state.text_from_audio = read_audio(audio_bytes)
-        st.session_state.audio_bytes = audio_bytes
-        if st.session_state.text_from_audio is not None:
-            st.rerun()
+    st.session_state.text_from_audio = input_from_mic()
+    if st.session_state.text_from_audio is not None:
+        st.rerun()
 
 
 def openai_assistants():
