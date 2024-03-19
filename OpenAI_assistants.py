@@ -30,7 +30,7 @@ class NamedBytesIO(BytesIO):
 
 def is_openai_api_key_valid(openai_api_key):
     """
-    Return True if the given OpenAI api_key is valid.
+    Return True if the given OpenAI API key is valid.
     """
 
     headers = {
