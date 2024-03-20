@@ -43,6 +43,11 @@ def is_openai_api_key_valid(openai_api_key):
     return response.status_code == 200
 
 
+def check_api_keys():
+    # Unset this flag to check the validity of the OpenAI API key
+    st.session_state.ready = False
+
+
 def tavily_search(query):
     """
     Perform a search using the Tavily API based on the provided query.
@@ -946,6 +951,9 @@ def openai_assistants():
     threads, messages, and files.
     """
 
+    if "ready" not in st.session_state:
+        st.session_state.ready = False
+
     if "thread_index" not in st.session_state:
         st.session_state.thread_index = 0
 
@@ -1004,6 +1012,7 @@ def openai_assistants():
                 label="$\\textsf{Your OPenAI API Key}$",
                 type="password",
                 placeholder="sk-",
+                on_change=check_api_keys,
                 label_visibility="collapsed",
             )
             st.write("**Tavily Search API Key**")
@@ -1011,6 +1020,7 @@ def openai_assistants():
                 label="$\\textsf{Your Tavily API Key}$",
                 type="password",
                 placeholder="tvly-",
+                on_change=check_api_keys,
                 label_visibility="collapsed",
             )
             authentication = True
@@ -1027,42 +1037,44 @@ def openai_assistants():
             authentication = user_pin == stored_pin
 
     if authentication:
-        if is_openai_api_key_valid(st.session_state.openai_api_key):
-            st.session_state.client = OpenAI(
-                api_key=st.session_state.openai_api_key
-            )
-            # Set the variable st.session_state.assistants_name_id
-            # containing assistant names and ids
-            if not st.session_state.assistants_name_id:
-                set_assistants_list()
-        else:
-            st.info(
-                """
-                **Enter your OpenAI and Tavily Search API keys in the sidebar**
+        if not st.session_state.ready:
+            if is_openai_api_key_valid(st.session_state.openai_api_key):
+                st.session_state.client = OpenAI(
+                    api_key=st.session_state.openai_api_key
+                )
+                st.session_state.ready = True
+                # Set the variable st.session_state.assistants_name_id
+                # containing assistant names and ids
+                if not st.session_state.assistants_name_id:
+                    set_assistants_list()
+            else:
+                st.info(
+                    """
+                    **Enter your OpenAI and Tavily Search API keys in the sidebar**
 
-                Get an OpenAI API key [here](https://platform.openai.com/api-keys)
-                and a Tavily Search API key [here](https://app.tavily.com/). If you
-                do not want to use any search tool, no need to enter your
-                Tavily Search API key.
-                """
-            )
-            st.info(
-                """
-                **Which information is stored where?**
+                    Get an OpenAI API key [here](https://platform.openai.com/api-keys)
+                    and a Tavily Search API key [here](https://app.tavily.com/).
+                    If you do not want to use any search tool, no need to enter
+                    your Tavily Search API key.
+                    """
+                )
+                st.info(
+                    """
+                    **Which information is stored where?**
 
-                Objects like assistants, threads, and messages are all
-                stored on OpenAI. In the Streamlit server where this app
-                is being deployed, only lists containing the IDs and names
-                of the thread objects are maintained. The problem is that
-                the lists may be initialized when the app is rebooted.
-                Users are therefore encouraged to save the thread IDs,
-                as they can be used to recover unlisted (missing) threads.
-                Thread IDs are shown at the bottom of each thread message.
-                """
-            )
-            with st.expander("Sample Assistant Instructions"):
-                st.markdown(sample_instructions)
-            st.stop()
+                    Objects like assistants, threads, and messages are all
+                    stored on OpenAI. In the Streamlit server where this app
+                    is being deployed, only lists containing the IDs and names
+                    of the thread objects are maintained. The problem is that
+                    the lists may be initialized when the app is rebooted.
+                    Users are therefore encouraged to save the thread IDs,
+                    as they can be used to recover unlisted (missing) threads.
+                    Thread IDs are shown at the bottom of each thread message.
+                    """
+                )
+                with st.expander("Sample Assistant Instructions"):
+                    st.markdown(sample_instructions)
+                st.stop()
     else:
         st.info("**Enter the correct password in the sidebar**")
         st.stop()
