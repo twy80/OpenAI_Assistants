@@ -1210,7 +1210,7 @@ def openai_assistants():
         st.write("---")
         st.write(
             "<small>**T.-W. Yoon**, Jan. 2024  \n</small>",
-            "<small>[ChatGPT (RAG) & DALL·E](https://chatgpt-dalle.streamlit.app/)  \n</small>",
+            "<small>[LangChain OpenAI Agent](https://langchain-openai-agent.streamlit.app/)  \n</small>",
             "<small>[TWY's Playground](https://twy-playground.streamlit.app/)  \n</small>",
             "<small>[Differential equations](https://diff-eqn.streamlit.app/)</small>",
             unsafe_allow_html=True
