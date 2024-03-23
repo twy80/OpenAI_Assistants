@@ -15,6 +15,8 @@ from PIL import Image
 from tavily import TavilyClient
 from audio_recorder_streamlit import audio_recorder
 
+GPT3_5, GPT4 = "gpt-3.5-turbo-0125", "gpt-4-0125-preview"
+
 
 class NamedBytesIO(BytesIO):
     def __init__(self, buffer, name: str):
@@ -747,7 +749,7 @@ def update_assistant(assistant_id):
     functions = {"tavily_search": tavily_search}
     available_tools = ["retrieval", "code_interpreter", "tavily_search"]
 
-    model_options = ["gpt-3.5-turbo-0125", "gpt-4-0125-preview"]
+    model_options = [GPT3_5, GPT4]
     if assistant_id is None:
         st.write("**:blue[Create your assistant]**")
         model_index = 0
@@ -786,7 +788,7 @@ def update_assistant(assistant_id):
         )
         model = st.radio(
             label="Default models",
-            options=("gpt-3.5-turbo-0125", "gpt-4-0125-preview"),
+            options=(GPT3_5, GPT4),
             label_visibility="collapsed",
             index=model_index,
         )
@@ -1096,7 +1098,7 @@ def openai_assistants():
         st.write("**Models**")
         model = st.radio(
             label="$\\textsf{Models}$",
-            options=("gpt-3.5-turbo-0125", "gpt-4-0125-preview"),
+            options=(GPT3_5, GPT4),
             label_visibility="collapsed",
             index=0,
         )
