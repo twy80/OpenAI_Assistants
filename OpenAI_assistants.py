@@ -1076,6 +1076,15 @@ def openai_assistants():
                 )
                 with st.expander("Sample Assistant Instructions"):
                     st.markdown(sample_instructions)
+                st.info(
+                    """
+                    This app is coded by T.-W. Yoon, a professor of systems theory at
+                    Korea University. Take a look at some of his other projects:
+                    - [LangChain OpenAI Agent](https://langchain-openai-agent.streamlit.app/)
+                    - [TWY's Playground](https://twy-playground.streamlit.app/)
+                    - [Differential equations](https://diff-eqn.streamlit.app/)
+                    """
+                )
                 st.stop()
     else:
         st.info("**Enter the correct password in the sidebar**")
