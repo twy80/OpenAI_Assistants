@@ -15,7 +15,7 @@ from PIL import Image
 from tavily import TavilyClient
 from audio_recorder_streamlit import audio_recorder
 
-GPT3_5, GPT4 = "gpt-3.5-turbo-0125", "gpt-4-0125-preview"
+GPT3_5, GPT4 = "gpt-3.5-turbo", "gpt-4-turbo"
 
 
 class NamedBytesIO(BytesIO):
