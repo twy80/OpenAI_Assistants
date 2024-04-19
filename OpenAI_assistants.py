@@ -1059,8 +1059,7 @@ def openai_assistants():
                     become quite different from the previous version. This code,
                     which worked fine with the previous version, is currently in
                     conflict with this new version. Please be patient as I am now
-                    occupied with other duties. I will sort things out when I find
-                    some time for myself.
+                    occupied with other duties. I will sort things out when I am ready.
 
                     **Enter your OpenAI and Tavily Search API keys in the sidebar**
 
