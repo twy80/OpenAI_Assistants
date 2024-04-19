@@ -1053,14 +1053,6 @@ def openai_assistants():
             else:
                 st.info(
                     """
-                    **Notice:**
-
-                    The Assistants API is still in beta, and the latest version has
-                    become quite different from the previous version. This code,
-                    which worked fine with the previous version, is currently in
-                    conflict with this new version. Please be patient as I am now
-                    occupied with other duties. I will sort things out when I am ready.
-
                     **Enter your OpenAI and Tavily Search API keys in the sidebar**
 
                     Get an OpenAI API key [here](https://platform.openai.com/api-keys)
