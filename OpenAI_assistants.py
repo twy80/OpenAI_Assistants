@@ -1057,8 +1057,8 @@ def openai_assistants():
 
                     Get an OpenAI API key [here](https://platform.openai.com/api-keys)
                     and a Tavily Search API key [here](https://app.tavily.com/).
-                    If you do not want to use any search tool, no need to enter
-                    your Tavily Search API key.
+                    If you do not want to use Tavily search for searching the internet,
+                    no need to enter your Tavily Search API key.
                     """
                 )
                 st.info(
@@ -1082,6 +1082,7 @@ def openai_assistants():
                     This app is coded by T.-W. Yoon, a professor of systems theory at
                     Korea University. Take a look at some of his other projects:
                     - [LangChain OpenAI Agent](https://langchain-openai-agent.streamlit.app/)
+                    - [Multi-Agent Debate](https://multi-agent-debate.streamlit.app/)
                     - [TWY's Playground](https://twy-playground.streamlit.app/)
                     - [Differential equations](https://diff-eqn.streamlit.app/)
                     """
