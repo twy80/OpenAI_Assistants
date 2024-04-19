@@ -1028,9 +1028,9 @@ def openai_assistants():
             )
             authentication = True
         else:
-            st.session_state.openai_api_key = st.secrets["openai_api_key"]
-            st.session_state.tavily_api_key = st.secrets["tavily_api_key"]
-            stored_pin = st.secrets["user_PIN"]
+            st.session_state.openai_api_key = st.secrets["OPENAI_API_KEY"]
+            st.session_state.tavily_api_key = st.secrets["TAVILY_API_KEY"]
+            stored_pin = st.secrets["USER_PIN"]
             st.write("**Password**")
             user_pin = st.text_input(
                 label="$\\textsf{Password}$",
@@ -1075,6 +1075,7 @@ def openai_assistants():
                     Thread IDs are shown at the bottom of each thread message.
                     """
                 )
+                st.image("files/Streamlit_Assistants_App.png")
                 with st.expander("Sample Assistant Instructions"):
                     st.markdown(sample_instructions)
                 st.info(
