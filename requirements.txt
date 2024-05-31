@@ -1,5 +1,5 @@
-openai==1.20.0
+openai
 streamlit
 requests
-tavily-python
+langchain-community
 audio_recorder_streamlit

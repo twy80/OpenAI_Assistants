@@ -1,5 +1,5 @@
 """
-OpenAI Assistants using openai API (by T.-W. Yoon, Jan. 2024)
+OpenAI Agent using the Assistants API (by T.-W. Yoon, May 2024)
 """
 
 import streamlit as st
@@ -12,25 +12,32 @@ import json
 from openai import OpenAI, APIError
 from io import BytesIO
 from PIL import Image
-from tavily import TavilyClient
+from langchain_community.utilities import BingSearchAPIWrapper
 from audio_recorder_streamlit import audio_recorder
+# The following are for type annotations
+from typing import Union, List, Tuple, Literal, Optional
+from streamlit.runtime.uploaded_file_manager import UploadedFile
+from openai.types.beta.threads.run import Run
+from openai.types.beta.threads.message import Message
+from openai.types.beta.threads.text import Text
 
-GPT3_5, GPT4 = "gpt-3.5-turbo", "gpt-4-turbo"
+
+GPT3_5, GPT4 = "gpt-3.5-turbo", "gpt-4o"
 
 
 class NamedBytesIO(BytesIO):
-    def __init__(self, buffer, name: str):
+    def __init__(self, buffer, name: str) -> None:
         super().__init__(buffer)
         self.name = name
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()  # Close the buffer and free up the resources
 
 
-def is_openai_api_key_valid(openai_api_key):
+def is_openai_api_key_valid(openai_api_key: str) -> bool:
     """
     Return True if the given OpenAI API key is valid.
     """
@@ -45,27 +52,38 @@ def is_openai_api_key_valid(openai_api_key):
     return response.status_code == 200
 
 
-def check_api_keys():
+def check_api_keys() -> None:
     # Unset this flag to check the validity of the OpenAI API key
     st.session_state.ready = False
 
 
-def tavily_search(query):
+def bing_search(query: str) -> str:
     """
-    Perform a search using the Tavily API based on the provided query.
+    Search the internet for the provided query
+    using the Bing Subscription Key.
     """
 
-    tavily_client = TavilyClient(api_key=st.session_state.tavily_api_key)
-    search_result = tavily_client.get_search_context(
-        query,
-        search_depth="advanced",
-        max_tokens=8192
+    search = BingSearchAPIWrapper(
+        bing_subscription_key=st.session_state.bing_subscription_key,
+        bing_search_url="https://api.bing.microsoft.com/v7.0/search",
     )
+    list_of_results = search.results(query=query, num_results=5)
 
-    return search_result
+    results = ""
+    for entry in list_of_results:
+        results += f"snippet: {entry['snippet']}\n"
+        results += f"title: {entry['title']}\n"
+        results += f"url: {entry['link']}\n\n"
+
+    return results
 
 
-def submit_tool_outputs(thread_id, run_id, tools_to_call):
+def submit_tool_outputs(
+    thread_id: str,
+    run_id: str,
+    tools_to_call: list
+) -> Run:
+
     """
     Submit tool outputs for a specific thread and run
     using the provided list of tools to call.
@@ -80,8 +98,8 @@ def submit_tool_outputs(thread_id, run_id, tools_to_call):
         function_name = tool.function.name
         function_args = tool.function.arguments
 
-        if function_name == "tavily_search":
-            output = tavily_search(query=json.loads(function_args)["query"])
+        if function_name == "bing_search":
+            output = bing_search(query=json.loads(function_args)["query"])
 
         if output:
             tool_output_array.append({"tool_call_id": tool_call_id, "output": output})
@@ -93,11 +111,88 @@ def submit_tool_outputs(thread_id, run_id, tools_to_call):
     )
 
 
-def run_and_wait_for_results(run, thread_id):
+def create_message_run(
+    model: str,
+    assistant_id: str,
+    thread_id: str,
+    query: str,
+    temperature: float,
+    attached_files: dict
+) -> Optional[Run]:
+
+    """
+    Run a conversation thread with an assistant.
+
+    Args:
+        model: The GPT model used.
+        assistant_id: The ID of the assistant.
+        thread_id: The ID of the conversation thread.
+        query: The user's query.
+        temperature: Variable about the randomness of the results.
+        attached_files: Dictionary containing list of attached file IDs.
+    Returns:
+        Run object
+    """
+
+    content = [{"type": "text", "text": query}]
+    image_files = attached_files["image"]
+    code_interpreter_files = attached_files["code_interpreter"]
+    file_search_files = attached_files["file_search"]
+
+    if image_files:
+        img_files = [
+            {"type": "image_file", "image_file": {"file_id": file_id}}
+            for file_id in image_files
+        ]
+        content.extend(img_files)
+        model = GPT4
+    # if image_urls:
+    #     img_urls = [
+    #         {"type": "image_url", "image_url": {"url": url}}
+    #         for url in image_urls
+    #     ]
+    #     content.extend(img_urls)
+    #     model = GPT4
+
+    code_interpreter_attachments = [
+        {"file_id": file_id, "tools": [{"type": "code_interpreter"}]}
+        for file_id in code_interpreter_files
+    ]
+    file_search_attachments = [
+        {"file_id": file_id, "tools": [{"type": "file_search"}]}
+        for file_id in file_search_files
+    ]
+
+    try:
+        # Create the user message and add it to the thread
+        st.session_state.client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=content,
+            attachments=code_interpreter_attachments + file_search_attachments,
+        )
+        # Create the Run, passing in the thread and the assistant
+        run = st.session_state.client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=assistant_id,
+            model=model,
+            temperature=temperature,
+        )
+        return run
+
+    except APIError as e:
+        st.error(f"An error occurred: {e}", icon="🚨")
+        return None
+
+
+def run_and_wait_for_results(run: Optional[Run], thread_id: str) -> bool:
     """
     Take a run object and its thread id as input, and return True or False
     depending on whether the run is successfully completed or not.
     """
+
+    if run is None:
+        return False
 
     while run.status != "completed":
         run = st.session_state.client.beta.threads.runs.retrieve(
@@ -124,72 +219,45 @@ def run_and_wait_for_results(run, thread_id):
     return True
 
 
-def run_thread(model, assistant_id, thread_id, query, file_ids):
+def get_recent_ai_messages(thread_id: str) -> List[Message]:
     """
-    Run a conversation thread with an assistant.
-
-    Args:
-        model (str): The GPT model used.
-        assistant_id (str): The ID of the assistant.
-        thread_id (str): The ID of the conversation thread.
-        query (str): The user's query.
-        file_ids (list of strings): list of file IDs.
-
-    Returns:
-        messages_list: The list of the most recent assistant message objects
-                       in the conversation thread,
-                       or None if the request has not been completed.
+    Get the most recent assistant messages.
     """
 
-    try:
-        # Create the user message and add it to the thread
-        st.session_state.client.beta.threads.messages.create(
-            thread_id=thread_id, role="user", content=query, file_ids=file_ids
-        )
+    messages = st.session_state.client.beta.threads.messages.list(
+        thread_id=thread_id,
+        order="desc"
+    )
 
-        # Create the Run, passing in the thread and the assistant
-        run = st.session_state.client.beta.threads.runs.create(
-            thread_id=thread_id, assistant_id=assistant_id, model=model
-        )
-    except APIError as e:
-        st.error(f"An error occurred: {e}", icon="🚨")
-        return None
+    messages_list = []
+    index = 0
+    while messages.data[index].role == "assistant":
+        messages_list.insert(0, messages.data[index])
+        index += 1
 
-    # Periodically retrieve the Run to check status and see if it has completed
-    with st.spinner("AI is thinking..."):
-        if run_and_wait_for_results(run, thread_id):
-            messages = st.session_state.client.beta.threads.messages.list(
-                thread_id=thread_id,
-                order="desc"
-            )
-
-            messages_list = []
-            index = 0
-            while messages.data[index].role == "assistant":
-                messages_list.insert(0, messages.data[index])
-                index += 1
-
-            return messages_list
-        else:
-            return None
+    return messages_list
 
 
-def process_citations(content):
+def process_citations(
+    content: Text
+) -> Tuple[str, List[Optional[str]], List[str], List[str]]:
+
     """
-    Process citations in the given message,
-    and returns the modified message, citations, and cited files.
+    Process citations in the given message, and return
+    the modified message, citations, cited files, and cited links.
 
     Args:
         content: The content of a message object.
 
     Returns:
-        tuple: A tuple containing the modified message content,
-               citations (list), cited files (list) and annotation files (list).
+        A tuple containing the modified message content,
+        and lists of citations, cited files, and cited links.
     """
+
     client = st.session_state.client
 
     annotations = content.annotations
-    citations, cited_files, annotation_files = [], [], []
+    citations, cited_files, cited_links = [], [], []
 
     for index, annotation in enumerate(annotations):
         # Replace the text with a footnote
@@ -202,31 +270,31 @@ def process_citations(content):
                 citations.append(file_citation.quote)
                 cited_files.append(f"[{index+1}] :blue[{cited_file.filename}]")
             elif (file_path := getattr(annotation, "file_path", None)):
-                annotation_files.append(client.files.retrieve(file_path.file_id))
-                link = f"https://platform.openai.com/files/{file_path.file_id}"
-                content.value = content.value.replace(
-                    f"]( [{index+1}])", f"]({link})"
+                cited_file = client.files.retrieve(file_path.file_id)
+                link = f"https://platform.openai.com/storage/files/{file_path.file_id}"
+                cited_links.append(
+                    f"[{index+1}] [:blue[{cited_file.filename}]]({link})"
                 )
         except Exception as e:
             # st.error(f"An error occurred: {e}", icon="🚨")
             # Ignore if there are problems with extracting citation information
             pass
 
-    return content.value, citations, cited_files, annotation_files
+    return content.value, citations, cited_files, cited_links
 
 
-def get_file_path(number, length=20):
+def get_file_path(key: str, length: int=20) -> str:
     """
-    Return a file path of a given length using the hashed value of number.
+    Return a file path of a given length using the hashed value of the key.
     """
 
-    hashed = hashlib.sha256(str(number).encode("utf-8")).hexdigest()
+    hashed = hashlib.sha256(key.encode("utf-8")).hexdigest()
     file_name = f"files/{hashed[:length]}.pickle"
 
     return file_name
 
 
-def get_file_name_from_id(file_id):
+def get_file_name_from_id(file_id: str) -> str:
     """
     Return the file name corresponding to the given file id.
     """
@@ -239,7 +307,40 @@ def get_file_name_from_id(file_id):
     return file_name
 
 
-def thread_exists(thread_id):
+def get_file_names_ids(file_ids: List[str]) -> Tuple[List[str], List[str]]:
+    """
+    Take a list of file IDs as input and return a list of the corresponding
+    file names. The first 12 characters of the file IDs are also returned.
+    """
+
+    file_id_heads, file_names = [], []
+
+    # Show the file names and ids up to 12 characters
+    for file_id in file_ids:
+        file_name = get_file_name_from_id(file_id)
+        if len(file_name) > 12:
+            file_name = file_name[0:12] + "..."
+        file_names.append(file_name)
+        file_id_heads.append(file_id[0:12] + "...")
+
+    return file_names, file_id_heads
+
+
+def get_vector_store_name_from_id(vector_store_id: str) -> str:
+    """
+    Return the vector store name corresponding to the given file id.
+    """
+
+    client = st.session_state.client
+    try:
+        vector_store = client.beta.vector_stores.retrieve(vector_store_id)
+        vector_store_name= vector_store.name
+    except APIError:
+        vector_store_name = "deleted vector store"
+    return vector_store_name
+
+
+def thread_exists(thread_id: str) -> bool:
     """
     Check to see if the thread with a given id exists.
     """
@@ -253,7 +354,11 @@ def thread_exists(thread_id):
         return False
 
 
-def display_text_with_equations(text):
+def display_text_with_equations(text: str) -> None:
+    """
+    Modify text with equations for better viewing in markdown.
+    """
+
     # Replace inline LaTeX equation delimiters \\( ... \\) with $
     modified_text = text.replace("\\(", "$").replace("\\)", "$")
 
@@ -264,77 +369,76 @@ def display_text_with_equations(text):
     st.markdown(modified_text)
 
 
-def show_image(file_id):
-    # Show the image of the given file id
+def show_image(image_file: str) -> None:
+    """
+    Show the image of the given file id or url.
+    """
+
     client = st.session_state.client
-    resp = client.files.with_raw_response.retrieve_content(file_id)
-    if resp.status_code == 200:
-        image_data = BytesIO(resp.content)
-        img = Image.open(image_data)
-        st.image(img)
+    byte_image = None
+    try:
+        if image_file.startswith("file-"):
+            byte_image = client.files.content(image_file).read()
+        elif image_file.startswith("http"):
+            resp = requests.get(image_file)
+            if resp.status_code == 200:
+                byte_image = resp.content
+
+        if byte_image is not None:
+            img = Image.open(BytesIO(byte_image))
+            st.image(img)
+    except Exception as e:
+        st.error(f"An error occurred: {e}", icon="🚨")
 
 
-def add_file_id_to_list(file_id, file_id_list):
-    # Add file id to the given list of file ids
-    if file_id not in file_id_list:
-        file_id_list.append(file_id)
-        update_threads_info()
-
-
-def show_messages(message_data_list):
+def show_messages(messages: List[Message]) -> None:
     """
     Show the given list of messages.
     """
 
-    thread_index = st.session_state.thread_index
-    file_id_list = st.session_state.threads_list[thread_index]["file_ids"]
-
-    for message in message_data_list:
-        if message.file_ids:
-            msg_files = []
-            for file_id in message.file_ids:
-                msg_files.append(
-                    f"[{get_file_name_from_id(file_id)}]" +
-                    f"(https://platform.openai.com/files/{file_id})"
-                )
-            msg_files = " (" + ", ".join(msg_files) + ")"
-        else:
-            msg_files = ""
-
+    for message in messages:
         for message_content in message.content:
-            if message.role == "user":
-                with st.chat_message("user"):
-                    # st.markdown(message_content.text.value + msg_files)
-                    display_text_with_equations(message_content.text.value + msg_files)
-            elif (text := getattr(message_content, "text", None)):
-                # Extract the annotation information together with the text
-                content_text, citations, cited_files, annotation_files = (
+            if (text := getattr(message_content, "text", None)):
+                content_text, citations, cited_files, cited_links = (
                     process_citations(text)
                 )
-                with st.chat_message("assistant"):
-                    # st.markdown(content_text + msg_files)
+                with st.chat_message(message.role):
                     display_text_with_equations(content_text)
                     if citations:
                         with st.expander("Source(s)"):
                             for citation, file in zip(citations, cited_files):
                                 st.markdown(file, help=citation)
-                    if annotation_files:
+                    if cited_links:
                         with st.expander("File(s) created by the assistant"):
-                            for file in annotation_files:
-                                link = f"https://platform.openai.com/files/{file.id}"
-                                st.markdown(f"[{file.filename}]({link})")
-                                add_file_id_to_list(file.id, file_id_list)
+                            for cited_link in cited_links:
+                                st.markdown(cited_link)
             elif (image_file := getattr(message_content, "image_file", None)):
-                # Display the image generated by the assistant
-                try:
-                    file_id = image_file.file_id
-                    show_image(file_id)
-                    add_file_id_to_list(file_id, file_id_list)
-                except Exception as e:
-                    st.error(f"An error occurred: {e}", icon="🚨")
+                file_id = image_file.file_id
+                file_name = get_file_name_from_id(file_id)
+                if message.role == "assistant":
+                    show_image(image_file.file_id)
+                else:
+                    link = f"https://platform.openai.com/storage/files/{file_id}"
+                    st.write(f"$~~~~$Attachment: [{file_name}]({link})")
+            elif (image_url := getattr(message_content, "image_url", None)):
+                show_image(image_url.url)
+        if message.attachments:
+            file_names_list = []
+            for attachment in message.attachments:
+                file_id = attachment.file_id
+                link = f"https://platform.openai.com/storage/files/{file_id}"
+                file_names_list.append(
+                    f"[{get_file_name_from_id(file_id)}]({link})"
+                )
+            file_names = ", ".join(file_names_list)
+            st.write(f"$~~~~$Attachment(s): {file_names}")
 
 
-def show_thread_messages(thread_id, no_of_messages="All"):
+def show_thread_messages(
+    thread_id: str,
+    no_of_messages: Union[Literal["All"], int]
+) -> None:
+
     """
     Show the most recent 'no_of_messages' messages of a given thread.
     The argument 'no_of_messages' is a positive integer or "All, and
@@ -355,7 +459,7 @@ def show_thread_messages(thread_id, no_of_messages="All"):
     show_messages(messages.data[-no_of_messages:])
 
 
-def name_thread(thread_id):
+def name_thread(thread_id: str) -> None:
     """
     Name the thread with the given ID using a summary of the first user query.
     """
@@ -372,7 +476,7 @@ def name_thread(thread_id):
 
     try:
         response = st.session_state.client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=GPT3_5,
             messages=[
                 {
                     "role": "system",
@@ -390,7 +494,7 @@ def name_thread(thread_id):
     return thread_name
 
 
-def save_thread_info_file():
+def save_thread_info_file() -> None:
     """
     Save a list containing the thread ids, names and a list of file ids
     used in the thread to a pickle file.
@@ -398,10 +502,10 @@ def save_thread_info_file():
 
     with open(st.session_state.thread_info_pickle, "wb") as file:
         pickle.dump(st.session_state.threads_list, file)
-    time.sleep(1)
+    time.sleep(0.5)
 
 
-def load_thread_info_file():
+def load_thread_info_file() -> None:
     """
     Load a list containing the thread ids, names and a list of file ids
     from a pickle file, and reset the list of thread names.
@@ -414,7 +518,7 @@ def load_thread_info_file():
     ]
 
 
-def update_threads_info():
+def update_threads_info() -> None:
     """
     Reset the list of thread names, and save a list containing the thread
     ids, names and a list of file ids to a pickle file.
@@ -426,7 +530,7 @@ def update_threads_info():
     save_thread_info_file()
 
 
-def get_thread(thread_id=None):
+def get_thread(thread_id: Optional[str]) -> None:
     """
     Get the thread with the given ID, and add it to the top of the threads list
     containing the thread ids, names and a list of file ids. If the given ID is
@@ -442,45 +546,47 @@ def get_thread(thread_id=None):
         thread_name = name_thread(thread_id)
 
     st.session_state.threads_list.insert(
-        0, {"id": thread_id, "name": thread_name, "file_ids": []}
+        0, {"id": thread_id, "name": thread_name}
     )
     st.session_state.thread_index = 0
     update_threads_info()
 
 
-def delete_file(file_id):
+def delete_file(file_id: str) -> None:
     """
     Delete the file of the given id.
     """
 
-    client = st.session_state.client
-    assistants = st.session_state.client.beta.assistants.list(
-        order="desc",
-        limit="20",
-    ).data
-
-    if assistants:
-        for assistant in assistants:
-            for assistant_file_id in assistant.file_ids:
-                if assistant_file_id == file_id:
-                    try:
-                        # Delete the association with assistants
-                        client.beta.assistants.files.delete(
-                            assistant_id = assistant.id,
-                            file_id=file_id
-                        )
-                    except APIError as e:
-                        # st.error(f"An error occurred: {e}", icon="🚨")
-                        pass
-
     try:
-        client.files.delete(file_id)
+        st.session_state.client.files.delete(file_id)
     except APIError as e:
         # st.error(f"An error occurred: {e}", icon="🚨")
         pass
 
 
-def delete_thread(thread_index):
+def delete_vector_store(vector_store_id: str) -> None:
+    """
+    Delete the vector store of the given id.
+    """
+
+    client = st.session_state.client
+
+    vector_store_files = client.beta.vector_stores.files.list(
+        vector_store_id=vector_store_id
+    )
+    file_ids = [file.id for file in vector_store_files.data]
+
+    for file_id in file_ids:
+        delete_file(file_id)
+
+    try:
+        client.beta.vector_stores.delete(vector_store_id)
+    except APIError as e:
+        # st.error(f"An error occurred: {e}", icon="🚨")
+        pass
+
+
+def delete_thread(thread_index: int) -> None:
     """
     Delete a thread and remove the corresponding element from the list
     containing the thread ids, names and a list of file ids.
@@ -488,8 +594,6 @@ def delete_thread(thread_index):
     """
 
     if thread_exists(st.session_state.threads_list[thread_index]["id"]):
-        for file_id in st.session_state.threads_list[thread_index]["file_ids"]:
-            delete_file(file_id)
         st.session_state.client.beta.threads.delete(
             st.session_state.threads_list[thread_index]["id"]
         )
@@ -503,42 +607,72 @@ def delete_thread(thread_index):
         get_thread(None)
 
 
-def upload_files(type=None):
+def upload_files(
+    purpose: Literal["file_search", "code_interpreter", "image"]
+) -> List[UploadedFile]:
+
     """
     Upload files and return the list of the uploaded file ids.
     If no files are uploaded, return an empty list.
     """
 
+    file_search = [
+        "c", "cs", "cpp", "doc", "docx", "html", "java", "json", "md", "pdf",
+        "php", "pptx", "py", "rb", "tex", "txt", "css", "js", "sh", "ts"
+    ]
+    image = ["jpeg", "jpg", "gif", "png"]
+    supported_file_types = {
+        "file_search": file_search,
+        "image": image,
+        "code_interpreter": (
+            file_search + image + ["csv", "tar", "xlsx", "xml", "zip"]
+        ),
+    }
+    type = supported_file_types.get(purpose)
+
     uploaded_files = st.file_uploader(
-        label="Upload an article",
+        label="Upload files",
         type=type,
         accept_multiple_files=True,
         label_visibility="collapsed",
-        key="upload" + str(st.session_state.uploader_key),
+        key=purpose + str(st.session_state.uploader_key),
     )
 
-    if uploaded_files:
-        uploaded_file_ids = []
-        for file in uploaded_files:
-            # Use BytesIO to read the file content
-            # with BytesIO(file.getbuffer()) as in_memory:
-            with NamedBytesIO(file.getbuffer(), file.name) as in_memory:
-                try:
-                    response = st.session_state.client.files.create(
-                        file=in_memory,
-                        purpose="assistants",
-                    )
-                    uploaded_file_ids.append(response.id)
-                except APIError as e:
-                    st.error(f"An error occurred: {e}", icon="🚨")
-                    return []
-        return uploaded_file_ids
-    else:
-        return []
+    return uploaded_files
 
 
-def make_unique_names(list_of_names):
-    # Make all elements in list_of_names unique
+def send_files_to_openai(
+    uploaded_files: List[UploadedFile]
+) -> List[str]:
+
+    """
+    Send a list of files to the OpenAI server and return
+    the corresponding file ids.
+    """
+
+    uploaded_file_ids = []
+    for file in uploaded_files:
+        # Use BytesIO to read the file content
+        # with BytesIO(file.getbuffer()) as in_memory:
+        with NamedBytesIO(file.getbuffer(), file.name) as in_memory:
+            try:
+                response = st.session_state.client.files.create(
+                    file=in_memory,
+                    purpose="assistants",
+                )
+                uploaded_file_ids.append(response.id)
+            except APIError as e:
+                st.error(f"An error occurred: {e}", icon="🚨")
+                return []
+
+    return uploaded_file_ids
+
+
+def make_unique_names(list_of_names: List[str]) -> List[str]:
+    """
+    Make all elments in list_of_names unique
+    """
+
     counts = {}
     list_of_unique_names = []
 
@@ -553,9 +687,9 @@ def make_unique_names(list_of_names):
     return list_of_unique_names
 
 
-def show_files():
+def show_files() -> None:
     st.write("")
-    st.write("**All file(s)** $\,$(uploaded to OpenAI)")
+    st.write("**File(s)** $\,$(Uploaded to OpenAI)")
 
     files = st.session_state.client.files.list().data
     if files:
@@ -576,14 +710,69 @@ def show_files():
             - :blue[Purpose]: {file.purpose}
             """
         )
-
-        st.button(
-            label="Delete the file",
-            on_click=delete_file,
-            args=(file.id,),
-        )
+        delete_file_button = st.button("Delete the file")
+        if delete_file_button:
+            st.warning("Are you sure you want to proceed?")
+            left, right = st.columns(2)
+            left.button(
+                label="Yes, I'm sure.",
+                on_click=delete_file,
+                args=(file.id,),
+                key="delete_file",
+            )
+            if right.button("No, I'm not"):
+                st.rerun()
     else:
-        st.write("No uploaded file")
+        st.write(":blue[No uploaded file]")
+
+
+def show_vector_stores() -> None:
+    st.write("")
+    st.write("**Vector Store(s)**")
+
+    vector_stores = st.session_state.client.beta.vector_stores.list().data
+    if vector_stores:
+        vector_store_names = [
+            store.name if store.name else "No Name" for store in vector_stores
+        ]
+        vector_store_names = make_unique_names(vector_store_names)
+        vector_store_name = st.selectbox(
+            label="Vector store names",
+            options=vector_store_names,
+            label_visibility="collapsed",
+            index=0,
+        )
+        index = vector_store_names.index(vector_store_name)
+        vector_store = vector_stores[index]
+
+        store_files = st.session_state.client.beta.vector_stores.files.list(
+            vector_store_id=vector_store.id
+        )
+        file_ids = [file.id for file in store_files.data]
+        store_file_names, _ = get_file_names_ids(file_ids)
+
+        vector_store_name = vector_store.name if vector_store.name else "No Name"
+        st.write(
+            f"""
+            - :blue[Vector Store Name]: {vector_store_name}
+            - :blue[Vector Store ID]: {vector_store.id}
+            - :blue[Vector Store File(s)]: {", ".join(store_file_names)}
+            """
+        )
+        delete_vector_store_button = st.button("Delete the vector store")
+        if delete_vector_store_button:
+            st.warning("Are you sure you want to proceed?")
+            left, right = st.columns(2)
+            left.button(
+                label="Yes, I'm sure.",
+                on_click=delete_vector_store,
+                args=(vector_store.id,),
+                key="delete_vector_store",
+            )
+            if right.button("No, I'm not"):
+                st.rerun()
+    else:
+        st.write(":blue[No vector store]")
 
 
 def set_assistants_list():
@@ -608,31 +797,38 @@ def set_assistants_list():
         st.session_state.run_assistants = False
 
 
-def delete_assistant(assistant_id):
+def delete_assistant(assistant_id: str) -> None:
     """
-    Delete the assistant of the given id along with the associated files.
+    Delete the assistant of the given id along with
+    the associated vector store.
     """
 
     assistant = st.session_state.client.beta.assistants.retrieve(assistant_id)
-    for file_id in assistant.file_ids:
-        try:
-            st.session_state.client.files.delete(file_id)
-        except APIError as e:
-            # st.error(f"An error occurred: {e}", icon="🚨")
-            pass
+    vector_store_ids = assistant.tool_resources.file_search.vector_store_ids
+
+    # Delete the vector store associated with the assistant
+    for vector_store_id in vector_store_ids:
+        delete_vector_store(vector_store_id)
+
+    # Delete the code interpreter files associated with the assistant
+    ci_file_ids = assistant.tool_resources.code_interpreter.file_ids
+    for file_id in ci_file_ids:
+        delete_file(file_id)
+
     try:
         st.session_state.client.beta.assistants.delete(assistant_id)
+        set_assistants_list()
     except APIError as e:
         # st.error(f"An error occurred: {e}", icon="🚨")
         pass
 
 
-def run_or_manage_assistants():
+def run_or_manage_assistants() -> None:
     # Toggle the flag to determine whether to run or manage assistants
     st.session_state.run_assistants = not st.session_state.run_assistants
 
 
-def read_audio(audio_bytes):
+def read_audio(audio_bytes: bytes) -> Optional[str]:
     """
     Read audio bytes and return the corresponding text.
     """
@@ -651,7 +847,7 @@ def read_audio(audio_bytes):
     return text
 
 
-def input_from_mic():
+def input_from_mic() -> Optional[str]:
     """
     Convert audio input from mic to text and returns it.
     If there is no audio input, None is returned.
@@ -670,27 +866,32 @@ def input_from_mic():
         return read_audio(audio_bytes)
 
 
-def show_assistant(assistant_id):
+def show_assistant(assistant_id: str) -> None:
     """
     Show the information of an assistant object
     """
 
     client = st.session_state.client
     assistant = client.beta.assistants.retrieve(assistant_id)
-    tools = []
-    for tool in assistant.tools:
-        tool_name = tool.type if tool.type != "function" else tool.function.name
-        tools.append(tool_name)
-    files = [client.files.retrieve(file_id) for file_id in assistant.file_ids]
-    file_ids, file_names = [], []
+    tools, ci_file_names, vector_store_id = [], [], ""
 
-    # Show the file names and ids up to 12 characters
-    for file in files:
-        file_ids.append(file.id[0:12] + "...")
-        file_name = file.filename
-        if len(file_name) > 12:
-            file_name = file_name[0:12] + "..."
-        file_names.append(file_name)
+    for tool in assistant.tools:
+        if tool.type == "function":
+            tool_name = tool.function.name
+        else:
+            tool_name = tool.type
+            if tool_name == "file_search":
+                if assistant.tool_resources.file_search.vector_store_ids:
+                    vector_store_id = (
+                        assistant.tool_resources.file_search.vector_store_ids[0]
+                    )
+                else:
+                    vector_store_id = ""
+            elif tool_name == "code_interpreter":
+                ci_file_names, _ = get_file_names_ids(
+                    assistant.tool_resources.code_interpreter.file_ids
+                )
+        tools.append(tool_name)
 
     st.write("")
     if st.button(label="Create an assistant"):
@@ -706,25 +907,52 @@ def show_assistant(assistant_id):
             f"- :blue[Default Model]: {assistant.model}\n"
             f"- :blue[ID]: {assistant.id}\n"
             f"- :blue[Instructions]: {assistant.instructions}\n"
+            f"- :blue[Temperature]: {assistant.temperature}\n"
             f"- :blue[Tool(s)]: {', '.join(tools)}\n"
-            f"- :blue[File Name(s)]: {', '.join(file_names)}\n"
-            f"- :blue[File ID(s)]: {', '.join(file_ids)}"
+            f"- :blue[Vector Store ID]: {vector_store_id}\n"
+            f"- :blue[Code Interpreter File(s)]: {', '.join(ci_file_names)}"
         )
+        st.write("")
         left, right = st.columns(2)
         if left.button(label="Modify the assistant"):
             st.session_state.manage_assistant_app = "modify"
             st.rerun()
-        if right.button(label="Delete the assistant"):
-            delete_assistant(assistant_id)
-            set_assistants_list()
-            st.rerun()
+        if right.button("Delete the assistant"):
+            st.warning("Are you sure you want to proceed?")
+            left, right = st.columns(2)
+            left.button(
+                label="Yes, I'm sure.",
+                on_click=delete_assistant,
+                args=(assistant_id,),
+                key="delete_assistant",
+            )
+            if right.button("No, I'm not"):
+                st.rerun()
     else:
-        st.write("No assistant yet")
+        st.write(":blue[No assistant yet]")
 
+    show_vector_stores()
     show_files()
 
 
-def update_assistant(assistant_id):
+def add_files_to_vector_store(
+    vector_store_file_ids: List[str], vector_store_id: str
+) -> None:
+
+    """
+    Add the list of files to the vector store of the given ID.
+    """
+
+    try:
+        st.session_state.client.beta.vector_stores.file_batches.create_and_poll(
+            vector_store_id=vector_store_id,
+            file_ids=vector_store_file_ids,
+        )
+    except Exception as e:
+        st.error(f"An error occurred: {e}", icon="🚨")
+
+
+def update_assistant(assistant_id: Optional[str]) -> None:
     """
     Update the assistant with 'assistant_id', or
     create an assistant when 'assistant_id' is None
@@ -733,10 +961,10 @@ def update_assistant(assistant_id):
     query_description = (
         "The search query to use. For example: 'Latest news on Nvidia stock performance'"
     )
-    tavily_search = {
+    bing_search = {
         "type": "function",
         "function": {
-            "name": "tavily_search",
+            "name": "bing_search",
             "description": "Get information on recent events from the web.",
             "parameters": {
                 "type": "object",
@@ -747,114 +975,163 @@ def update_assistant(assistant_id):
             }
         }
     }
-    functions = {"tavily_search": tavily_search}
-    available_tools = ["retrieval", "code_interpreter", "tavily_search"]
+    functions = {"bing_search": bing_search}
+    available_tools = ["file_search", "code_interpreter", "bing_search"]
 
+    client = st.session_state.client
     model_options = [GPT3_5, GPT4]
     if assistant_id is None:
-        st.write("**:blue[Create your assistant]**")
-        model_index = 0
+        st.write("**:blue[Create Your Assistant]**")
+        model_index = 1
         assistant_name_value = ""
         instructions_value = ""
         tools_value = None
     else:
-        assistant = st.session_state.client.beta.assistants.retrieve(
+        assistant = client.beta.assistants.retrieve(
             assistant_id
         )
-        st.write(f"**:blue[Modify the assistant] $\,${assistant.name}**")
+        st.write(f"**Modify $\,$:blue[{assistant.name}]**")
         if assistant.model in model_options:
             model_index = model_options.index(assistant.model)
         else:
-            model_index = 0
+            model_index = 1
         assistant_name_value = assistant.name
         instructions_value = assistant.instructions
         tools_value = []
         for tool in assistant.tools:
-            tool_name = tool.type if tool.type != "function" else tool.function.name
-            tools_value.append(tool_name)
-        file_ids_value = assistant.file_ids
-
-    with st.form("Submit"):
-        st.write("**Name** $\,$(Do not press Enter.)")
-        name = st.text_input(
-            label="assistant name",
-            value=assistant_name_value,
-            label_visibility="collapsed",
-        )
-        st.write(
-            """
-            **Model** $\,$(This default model will be overriden
-            by the model selected at the time of running threads.)
-            """
-        )
-        model = st.radio(
-            label="Default models",
-            options=(GPT3_5, GPT4),
-            label_visibility="collapsed",
-            index=model_index,
-        )
-        st.write("**Instructions**")
-        instructions = st.text_area(
-            label="instructions",
-            value=instructions_value,
-            label_visibility="collapsed",
-        )
-        st.write(
-            """
-            **Tools** $\,$(:blue[tavily_search] is implemented using
-            'function calling'.)
-            """
-        )
-        tool_options = available_tools
-        tool_names = st.multiselect(
-            label="assistant tools",
-            options=tool_options,
-            default=tools_value,
-            label_visibility="collapsed",
-        )
-        tools = []
-        for tool_name in tool_names:
-            if tool_name in ("retrieval", "code_interpreter"):
-                tool = {"type": tool_name}
+            if tool.type == "function":
+                tool_name = tool.function.name
             else:
-                tool = functions[tool_name]
-            tools.append(tool)
-        st.write("**File(s)**$\,$ (to be added)")
-        file_ids = upload_files()
-        if assistant_id:
-            file_ids.extend(file_ids_value)
+                tool_name = tool.type
+            tools_value.append(tool_name)
 
-        form_left, form_right = st.columns(2)
-        submitted = form_left.form_submit_button("Submit")
-        if submitted:
-            try:
-                if assistant_id is None:
-                    st.session_state.client.beta.assistants.create(
-                        model=model,
-                        name=name,
-                        instructions=instructions,
-                        tools=tools,
-                        file_ids=file_ids,
-                    )
-                else:
-                    st.session_state.client.beta.assistants.update(
-                        assistant_id=assistant_id,
-                        model=model,
-                        name=name,
-                        instructions=instructions,
-                        tools=tools,
-                        file_ids=file_ids,
-                    )
-                set_assistants_list()
-                st.session_state.manage_assistant_app = "show"
-                st.rerun()
-            except APIError as e:
-                st.error(f"An error occurred: {e}", icon="🚨")
+    # with st.form("Submit"):
+    st.write("**Name** $\,$(Do not press Enter.)")
+    name = st.text_input(
+        label="assistant name",
+        value=assistant_name_value,
+        label_visibility="collapsed",
+    )
+    st.write(
+        """
+        **Model** $\,$(This default model will be overriden
+        by the model selected at the time of running threads.)
+        """
+    )
+    model = st.radio(
+        label="Default models",
+        options=(GPT3_5, GPT4),
+        label_visibility="collapsed",
+        index=model_index,
+    )
+    st.write("**Instructions**")
+    instructions = st.text_area(
+        label="instructions",
+        value=instructions_value,
+        label_visibility="collapsed",
+    )
+    st.write(
+        """
+        **Tools** $\,$(:blue[bing_search] is implemented using
+        'function calling'.)
+        """
+    )
+    tool_options = available_tools
+    tool_names = st.multiselect(
+        label="assistant tools",
+        options=tool_options,
+        default=tools_value,
+        label_visibility="collapsed",
+    )
+    tools = []
+    tool_resources = {}
 
-        back_to_manage = form_right.form_submit_button("Back")
-        if back_to_manage:
+    for tool_name in tool_names:
+        if tool_name == "file_search":
+            tool = {"type": tool_name}
+            if (
+                assistant_id is None or
+                assistant.tool_resources.file_search is None
+            ):
+                st.session_state.vector_store_ids = []
+            else:
+                st.session_state.vector_store_ids = (
+                    assistant.tool_resources.file_search.vector_store_ids
+                )
+            st.write("**:blue[Add vector store files]**")
+            st.session_state.vector_store_files = upload_files(purpose="file_search")
+        elif tool_name == "code_interpreter":
+            tool = {"type": tool_name}
+            if (
+                assistant_id is None or
+                assistant.tool_resources.code_interpreter is None
+            ):
+                st.session_state.ci_file_ids = []
+            else:
+                st.session_state.ci_file_ids = (
+                    assistant.tool_resources.code_interpreter.file_ids
+                )
+            st.write("**:blue[Add code interpreter files]**")
+            st.session_state.new_ci_files = upload_files(purpose="code_interpreter")
+        else:
+            tool = functions[tool_name]
+        tools.append(tool)
+
+    left, right = st.columns(2)
+    submitted = left.button("Submit")
+    if submitted:
+        st.session_state.uploader_key += 1
+        if st.session_state.vector_store_files:
+            store_file_ids = send_files_to_openai(st.session_state.vector_store_files)
+            if st.session_state.vector_store_ids:
+                vector_store_id = st.session_state.vector_store_ids[0]
+            else:
+                vector_store = client.beta.vector_stores.create(
+                    name=name
+                )
+                vector_store_id = vector_store.id
+            add_files_to_vector_store(store_file_ids, vector_store_id)
+            st.session_state.vector_store_ids = [vector_store_id]
+        tool_resources["file_search"] = {
+            "vector_store_ids": st.session_state.vector_store_ids
+        }
+        if st.session_state.new_ci_files:
+            new_ci_file_ids = send_files_to_openai(st.session_state.new_ci_files)
+            st.session_state.ci_file_ids.extend(new_ci_file_ids)
+        tool_resources["code_interpreter"] = {
+            "file_ids": st.session_state.ci_file_ids
+        }
+
+        try:
+            if assistant_id is None:
+                client.beta.assistants.create(
+                    model=model,
+                    name=name,
+                    instructions=instructions,
+                    tools=tools,
+                    tool_resources=tool_resources,
+                    temperature=st.session_state.temperature,
+                )
+            else:
+                client.beta.assistants.update(
+                    assistant_id=assistant_id,
+                    model=model,
+                    name=name,
+                    instructions=instructions,
+                    tools=tools,
+                    tool_resources=tool_resources,
+                    temperature=st.session_state.temperature,
+                )
+            set_assistants_list()
             st.session_state.manage_assistant_app = "show"
             st.rerun()
+        except APIError as e:
+            st.error(f"An error occurred: {e}", icon="🚨")
+
+    back_to_manage = right.button("Back")
+    if back_to_manage:
+        st.session_state.manage_assistant_app = "show"
+        st.rerun()
 
 
 def manage_assistant(assistant_id):
@@ -897,6 +1174,7 @@ def run_assistant(model, assistant_id):
     query = st.chat_input(
         placeholder="Enter your query",
     )
+    upload_file_options = "image", "code_interpreter", "file_search"
 
     if query or st.session_state.text_from_audio:
         if st.session_state.text_from_audio:
@@ -905,23 +1183,32 @@ def run_assistant(model, assistant_id):
         with st.chat_message("user"):
             st.markdown(query)
 
-        # Append the file ids in this message to st.session_state.threads_list
-        if st.session_state.file_ids:
-            file_id_list = st.session_state.threads_list[thread_index]["file_ids"]
-            for file_id in st.session_state.file_ids:
-                add_file_id_to_list(file_id, file_id_list)
-
-        message = run_thread(
-            model, assistant_id, thread_id, query, st.session_state.file_ids
+        attached_files = {}
+        for purpose in upload_file_options:
+            attached_files[purpose] = send_files_to_openai(
+                st.session_state.files[purpose]
+            )
+        run = create_message_run(
+            model=model,
+            assistant_id=assistant_id,
+            thread_id=thread_id,
+            query=query,
+            temperature=st.session_state.temperature,
+            attached_files=attached_files,
         )
 
-        st.session_state.file_ids = []
-        st.session_state.uploader_key += 1
+        with st.spinner("AI is thinking..."):
+            if run_and_wait_for_results(run, thread_id):
+                recent_messages = get_recent_ai_messages(thread_id)
+                st.session_state.files = {key: [] for key in upload_file_options}
+                st.session_state.uploader_key += 1
+            else:
+                recent_messages = None
 
-        if message is None:
+        if recent_messages is None:
             st.error("Request not completed.", icon="🚨")
         else:
-            show_messages(message)
+            show_messages(recent_messages)
             if st.session_state.threads_list[thread_index]["name"] == "No name yet":
                 thread_name = name_thread(thread_id)
                 st.session_state.threads_list[thread_index]["name"] = thread_name
@@ -931,8 +1218,16 @@ def run_assistant(model, assistant_id):
             st.session_state.text_from_audio = None
             st.rerun()
 
-    # st.session_state.file_ids = upload_files(["pdf", "txt"])
-    st.session_state.file_ids = upload_files()
+    left, right = st.columns([1, 5])
+    left.write("**$\:\!$Upload Files**")
+    purpose = right.radio(
+        label="purpose",
+        options=upload_file_options,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    st.session_state.files[purpose] = upload_files(purpose)
+
     assistants_name_id = st.session_state.assistants_name_id
     assistant_index = st.session_state.assistant_index
     st.markdown(
@@ -969,8 +1264,12 @@ def openai_assistants():
     if "no_of_messages" not in st.session_state:
         st.session_state.no_of_messages = "All"
 
-    if "file_ids" not in st.session_state:
-        st.session_state.file_ids = []
+    if "files" not in st.session_state:
+        st.session_state.files = {
+            "image": [],
+            "code_interpreter": [],
+            "file_search": [],
+        }
 
     if "uploader_key" not in st.session_state:
         st.session_state.uploader_key = 0
@@ -993,9 +1292,20 @@ def openai_assistants():
     if "text_from_audio" not in st.session_state:
         st.session_state.text_from_audio = None
 
-    # Choose app for manage_assistants()
     if "manage_assistant_app" not in st.session_state:
         st.session_state.manage_assistant_app = "show"
+
+    if "vector_store_ids" not in st.session_state:
+        st.session_state.vector_store_ids = []
+
+    if "vector_store_files" not in st.session_state:
+        st.session_state.vector_store_files = []
+
+    if "ci_file_ids" not in st.session_state:
+        st.session_state.ci_file_ids = []
+
+    if "new_ci_files" not in st.session_state:
+        st.session_state.new_ci_files = []
 
     st.write("## 📚 OpenAI Assistants")
     st.write("")
@@ -1018,18 +1328,17 @@ def openai_assistants():
                 on_change=check_api_keys,
                 label_visibility="collapsed",
             )
-            st.write("**Tavily Search API Key**")
-            st.session_state.tavily_api_key = st.text_input(
-                label="$\\textsf{Your Tavily API Key}$",
+            st.write("**Bing Subscription Key**")
+            st.session_state.bing_subscription_key = st.text_input(
+                label="$\\textsf{Your Bing Subscription Key}$",
                 type="password",
-                placeholder="tvly-",
                 on_change=check_api_keys,
                 label_visibility="collapsed",
             )
             authentication = True
         else:
             st.session_state.openai_api_key = st.secrets["OPENAI_API_KEY"]
-            st.session_state.tavily_api_key = st.secrets["TAVILY_API_KEY"]
+            st.session_state.bing_subscription_key = st.secrets["BING_SUBSCRIPTION_KEY"]
             stored_pin = st.secrets["USER_PIN"]
             st.write("**Password**")
             user_pin = st.text_input(
@@ -1053,12 +1362,12 @@ def openai_assistants():
             else:
                 st.info(
                     """
-                    **Enter your OpenAI and Tavily Search API keys in the sidebar**
+                    **Enter your OpenAI and Bing Subscription Keys in the sidebar**
 
-                    Get an OpenAI API key [here](https://platform.openai.com/api-keys)
-                    and a Tavily Search API key [here](https://app.tavily.com/).
-                    If you do not want to use Tavily search for searching the internet,
-                    no need to enter your Tavily Search API key.
+                    Get an OpenAI API Key [here](https://platform.openai.com/api-keys)
+                    and a Bing Subscription Key [here](https://portal.azure.com/).
+                    If you do not want to use Bing Search for searching the internet,
+                    no need to enter your Bing Subscription Key.
                     """
                 )
                 st.info(
@@ -1193,6 +1502,18 @@ def openai_assistants():
             st.session_state.thread_id_input_key += 1
             st.rerun()
 
+        st.write("")
+        st.write("**Temperature**")
+        st.session_state.temperature = st.slider(
+            label="Temperature (higher $\Rightarrow$ more random)",
+            min_value=0.0,
+            max_value=2.0,
+            value=0.8,
+            step=0.1,
+            format="%.1f",
+            label_visibility="collapsed",
+        )
+
         st.write("**Prev. Messages to Show**")
         st.session_state.no_of_messages = st.radio(
             label="$\\textsf{Messages to show}$",
@@ -1216,11 +1537,6 @@ def openai_assistants():
         if st.button(label="$\;$Refresh the screen$~$"):
             st.rerun()
 
-        st.write(
-            "<small>Deleting a thread will also remove the files used in the thread.</small>",
-            unsafe_allow_html=True,
-        )
-
         st.write("---")
         st.write(
             "<small>**T.-W. Yoon**, Jan. 2024  \n</small>",
@@ -1242,22 +1558,22 @@ sample_instructions = """
 :blue[Search Only]:
 
 You are a helpful assistant. Your goal is to provide answers to human
-inquiries using search results from the internet through the 'tavily_search'
+inquiries using search results from the internet through the 'bing_search'
 function. Your answers should be solely based on information from the internet,
 not from your general knowledge. Use markdown syntax and include relevant URL
 sources following MLA format. Should the information not be available through
-the 'tavily_search' function, please inform the human explicitly that the
+the 'bing_search' function, please inform the human explicitly that the
 answer could not be found.
 
 :blue[Search]:
 
 You are a helpful assistant. Your goal is to provide answers to human
 inquiries using 1) search results from the internet through the
-'tavily_search' function or 2) your general knowledge. You must inform
+'bing_search' function or 2) your general knowledge. You must inform
 the human of the basis of your answers, i.e., whether your answers are
 based on 1) or 2). Use markdown syntax and include relevant URL sources
 following MLA format. Should the information not be available through
-the 'tavily_search' function or your general knowledge, please inform
+the 'bing_search' function or your general knowledge, please inform
 the human explicitly that the answer could not be found.
 
 :blue[Retrieval Only]:
@@ -1285,12 +1601,12 @@ the answer could not be found.
 
 You are a helpful assistant. Your goal is to provide answers to human
 inquiries using 1) information from the uploaded documents, 2) search
-results from the internet through the 'tavily_search' function,
+results from the internet through the 'bing_search' function,
 or 3) your general knowledge. You must inform the human of the basis
 of your answers, i.e., whether your answers are based on 1), 2), or 3).
 Use markdown syntax and include relevant sources, like URLs, following
 MLA format. Should the information not be available through the
-uploaded documents, the 'tavily_search' function, or your general
+uploaded documents, the 'bing_search' function, or your general
 knowledge, please inform the human explicitly that the answer could
 not be found.
 
@@ -1307,7 +1623,7 @@ Additionally, if given the user's code, carefully analyze it to:
 Run code whenever necessary to verify its functionality and to identify
 potential improvements. Your feedback should aim to help the user enhance
 their coding skills and adopt best coding practices. If your response
-includes information obtained through the 'tavily_search' function,
+includes information obtained through the 'bing_search' function,
 please include relevant URL sources following MLA format. Your primary
 goal is to assist users in becoming more proficient and efficient Python
 developers.
