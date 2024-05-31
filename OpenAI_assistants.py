@@ -52,6 +52,26 @@ def is_openai_api_key_valid(openai_api_key: str) -> bool:
     return response.status_code == 200
 
 
+def is_bing_subscription_key_valid(bing_subscription_key: str) -> bool:
+    """
+    Return True if the given Bing subscription key is valid.
+    """
+
+    if not bing_subscription_key:
+        return False
+    try:
+        search = BingSearchAPIWrapper(
+            bing_subscription_key=bing_subscription_key,
+            bing_search_url="https://api.bing.microsoft.com/v7.0/search",
+            k=1
+        )
+        search.run("Where can I get a Bing subscription key?")
+    except:
+        return False
+    else:
+        return True
+
+
 def check_api_keys() -> None:
     # Unset this flag to check the validity of the OpenAI API key
     st.session_state.ready = False
@@ -976,7 +996,10 @@ def update_assistant(assistant_id: Optional[str]) -> None:
         }
     }
     functions = {"bing_search": bing_search}
-    available_tools = ["file_search", "code_interpreter", "bing_search"]
+    if st.session_state.bing_subscription_validity:
+        available_tools = ["file_search", "code_interpreter", "bing_search"]
+    else:
+        available_tools = ["file_search", "code_interpreter"]
 
     client = st.session_state.client
     model_options = [GPT3_5, GPT4]
@@ -1032,14 +1055,13 @@ def update_assistant(assistant_id: Optional[str]) -> None:
     )
     st.write(
         """
-        **Tools** $\,$(:blue[bing_search] is implemented using
-        'function calling'.)
+        **Tools** $\,$(:blue[bing_search] is available
+        if your bing subscription key is provided.)
         """
     )
-    tool_options = available_tools
     tool_names = st.multiselect(
         label="assistant tools",
-        options=tool_options,
+        options=available_tools,
         default=tools_value,
         label_visibility="collapsed",
     )
@@ -1252,6 +1274,9 @@ def openai_assistants():
     if "ready" not in st.session_state:
         st.session_state.ready = False
 
+    if "bing_subscription_validity" not in st.session_state:
+        st.session_state.bing_subscription_validity = False
+
     if "thread_index" not in st.session_state:
         st.session_state.thread_index = 0
 
@@ -1335,10 +1360,15 @@ def openai_assistants():
                 on_change=check_api_keys,
                 label_visibility="collapsed",
             )
+            if is_bing_subscription_key_valid(
+                st.session_state.bing_subscription_key
+            ):
+                st.session_state.bing_subscription_validity = True
             authentication = True
         else:
             st.session_state.openai_api_key = st.secrets["OPENAI_API_KEY"]
             st.session_state.bing_subscription_key = st.secrets["BING_SUBSCRIPTION_KEY"]
+            st.session_state.bing_subscription_validity = True
             stored_pin = st.secrets["USER_PIN"]
             st.write("**Password**")
             user_pin = st.text_input(
