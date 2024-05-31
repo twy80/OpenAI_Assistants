@@ -824,16 +824,17 @@ def delete_assistant(assistant_id: str) -> None:
     """
 
     assistant = st.session_state.client.beta.assistants.retrieve(assistant_id)
-    vector_store_ids = assistant.tool_resources.file_search.vector_store_ids
 
-    # Delete the vector store associated with the assistant
-    for vector_store_id in vector_store_ids:
-        delete_vector_store(vector_store_id)
-
-    # Delete the code interpreter files associated with the assistant
-    ci_file_ids = assistant.tool_resources.code_interpreter.file_ids
-    for file_id in ci_file_ids:
-        delete_file(file_id)
+    if assistant.tool_resources.file_search is not None:
+        vector_store_ids = assistant.tool_resources.file_search.vector_store_ids
+        # Delete the vector store associated with the assistant
+        for vector_store_id in vector_store_ids:
+            delete_vector_store(vector_store_id)
+    if assistant.tool_resources.code_interpreter is not None:
+        # Delete the code interpreter files associated with the assistant
+        ci_file_ids = assistant.tool_resources.code_interpreter.file_ids
+        for file_id in ci_file_ids:
+            delete_file(file_id)
 
     try:
         st.session_state.client.beta.assistants.delete(assistant_id)
