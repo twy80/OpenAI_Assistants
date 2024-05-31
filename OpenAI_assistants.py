@@ -1451,7 +1451,7 @@ def openai_assistants():
             label="$\\textsf{Models}$",
             options=(GPT3_5, GPT4),
             label_visibility="collapsed",
-            index=0,
+            index=1,
         )
 
         # Make a list of assistant names
