@@ -1560,11 +1560,18 @@ def openai_assistants():
             on_click=get_thread,
             args=(None,)
         )
-        st.button(
-            label="$\:\,$Delete this thread$\:\,$",
-            on_click=delete_thread,
-            args=(st.session_state.thread_index,),
-        )
+        delete_thread_button = st.button("$\:\,$Delete this thread$\:\,$")
+        if delete_thread_button:
+            st.warning("Are you sure you want to proceed?")
+            left, right = st.columns(2)
+            left.button(
+                label="Yes.",
+                on_click=delete_thread,
+                args=(st.session_state.thread_index,),
+                key="delete_thread",
+            )
+            if right.button("No"):
+                st.rerun()
         if st.button(label="$\;$Refresh the screen$~$"):
             st.rerun()
 
