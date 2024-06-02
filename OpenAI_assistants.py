@@ -306,7 +306,7 @@ def get_file_name_from_id(file_id: str) -> str:
 
     try:
         file = st.session_state.client.files.retrieve(file_id)
-        file_name= file.filename
+        file_name = file.filename
     except APIError:
         file_name = "deleted file"
     return file_name
@@ -339,7 +339,7 @@ def get_vector_store_name_from_id(vector_store_id: str) -> str:
     client = st.session_state.client
     try:
         vector_store = client.beta.vector_stores.retrieve(vector_store_id)
-        vector_store_name= vector_store.name
+        vector_store_name = vector_store.name
     except APIError:
         vector_store_name = "deleted vector store"
     return vector_store_name
