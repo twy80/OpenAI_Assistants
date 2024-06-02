@@ -18,7 +18,6 @@ from typing_extensions import override
 # The following are for type annotations
 from typing import Union, List, Tuple, Dict, Literal, Optional
 from streamlit.runtime.uploaded_file_manager import UploadedFile
-from openai.types.beta.threads.run import Run
 from openai.types.beta.threads.message import Message
 from openai.types.beta.threads.text import Text
 
