@@ -236,18 +236,12 @@ def show_most_recent_assistant_image(thread_id: str) -> None:
         order="desc"
     )
 
-    found = False
     for message in messages.data:
-        for message_content in message.content:
-            if message.role == "user":
-                found = True
-                break
-            elif (image_file := getattr(message_content, "image_file", None)):
-                found = True
-                show_image(image_file.file_id)
-                break
-        if found:
+        if message.role == "user":
             break
+        for message_content in message.content:
+            if (image_file := getattr(message_content, "image_file", None)):
+                show_image(image_file.file_id)
 
 
 def process_citations(
