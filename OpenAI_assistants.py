@@ -236,6 +236,7 @@ def show_most_recent_assistant_image(thread_id: str) -> None:
         order="desc"
     )
 
+    found = False
     for message in messages.data:
         for message_content in message.content:
             if message.role == "user":
