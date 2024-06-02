@@ -1221,8 +1221,6 @@ def run_assistant(model, assistant_id):
         )
 
         with st.chat_message("assistant"):
-            if st.session_state.files["image"]:
-                model = GPT4
             try:
                 with st.session_state.client.beta.threads.runs.stream(
                     model=model,
@@ -1243,7 +1241,7 @@ def run_assistant(model, assistant_id):
                             thread_name
                         )
                         update_threads_info()
-            except Exception as e:
+            except APIError as e:
                 st.error(f"An error occurred: {e}", icon="🚨")
 
         if st.session_state.text_from_audio:
