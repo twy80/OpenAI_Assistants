@@ -16,7 +16,7 @@ from langchain_community.utilities import BingSearchAPIWrapper
 from audio_recorder_streamlit import audio_recorder
 from typing_extensions import override
 # The following are for type annotations
-from typing import Union, List, Tuple, Literal, Optional
+from typing import Union, List, Tuple, Dict, Literal, Optional
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 from openai.types.beta.threads.run import Run
 from openai.types.beta.threads.message import Message
@@ -176,7 +176,7 @@ class EventHandler(AssistantEventHandler):
 def create_message_run_stream(
     thread_id: str,
     query: str,
-    attached_files: dict
+    attached_files: Dict[str, str]
 ) -> Optional[Message]:
 
     """
