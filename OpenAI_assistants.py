@@ -9,18 +9,18 @@ import requests
 import pickle
 import hashlib
 import json
-from openai import OpenAI, APIError
+from openai import OpenAI, APIError, AssistantEventHandler
 from io import BytesIO
 from PIL import Image
 from langchain_community.utilities import BingSearchAPIWrapper
 from audio_recorder_streamlit import audio_recorder
+from typing_extensions import override
 # The following are for type annotations
 from typing import Union, List, Tuple, Literal, Optional
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 from openai.types.beta.threads.run import Run
 from openai.types.beta.threads.message import Message
 from openai.types.beta.threads.text import Text
-
 
 GPT3_5, GPT4 = "gpt-3.5-turbo", "gpt-4o"
 
@@ -98,60 +98,96 @@ def bing_search(query: str) -> str:
     return results
 
 
-def submit_tool_outputs(
-    thread_id: str,
-    run_id: str,
-    tools_to_call: list
-) -> Run:
+class EventHandler(AssistantEventHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text_placeholder = st.empty()
+        self.current_text = ""
 
-    """
-    Submit tool outputs for a specific thread and run
-    using the provided list of tools to call.
-    """
+    @override
+    def on_text_created(self, text):
+        # self.current_text = "\nassistant > "
+        self.text_placeholder.write(self.current_text)
 
-    client = st.session_state.client
-    tool_output_array = []
+    @override
+    def on_text_delta(self, delta, snapshot):
+        self.current_text += delta.value
+        self.text_placeholder.write(self.current_text)
 
-    for tool in tools_to_call:
-        output = None
-        tool_call_id = tool.id
-        function_name = tool.function.name
-        function_args = tool.function.arguments
+    def on_tool_call_created(self, tool_call):
+        if tool_call.type == "function":
+            tool_name = "Search"
+        else:
+            tool_name = tool_call.type
+            tool_name = tool_name[0].upper() + tool_name[1:]
+        self.current_text += f"\n\n**:blue[{tool_name}]**: "
+        self.text_placeholder.write(self.current_text)
 
-        if function_name == "bing_search":
-            output = bing_search(query=json.loads(function_args)["query"])
+    def on_tool_call_delta(self, delta, snapshot):
+        if delta.type == 'code_interpreter':
+            if delta.code_interpreter.input:
+                self.current_text += delta.code_interpreter.input
+                self.text_placeholder.write(self.current_text)
+            if delta.code_interpreter.outputs:
+                self.current_text += f"\n\n**:blue[Output]**: "
+                for output in delta.code_interpreter.outputs:
+                    if output.type == "logs":
+                        self.current_text += f"\n\n{output.logs}"
+                self.text_placeholder.write(self.current_text)
+                self.current_text += "\n\n**:blue[Assistant]**: "
 
-        if output:
-            tool_output_array.append({"tool_call_id": tool_call_id, "output": output})
+    @override
+    def on_event(self, event):
+        # Retrieve events that are denoted with 'requires_action'
+        # since these will have our tool_calls
+        if event.event == 'thread.run.requires_action':
+            run_id = event.data.id  # Retrieve the run ID from the event data
+            self.handle_requires_action(event.data, run_id)
 
-    return client.beta.threads.runs.submit_tool_outputs(
-        thread_id=thread_id,
-        run_id=run_id,
-        tool_outputs=tool_output_array
-    )
+    def handle_requires_action(self, data, run_id):
+        tool_outputs = []
+
+        for tool in data.required_action.submit_tool_outputs.tool_calls:
+            output = None
+            tool_call_id = tool.id
+            function_name = tool.function.name
+            function_args = tool.function.arguments
+
+            if function_name == "bing_search":
+                output = bing_search(query=json.loads(function_args)["query"])
+
+            if output:
+                tool_outputs.append({"tool_call_id": tool_call_id, "output": output})
+
+        # Submit all tool_outputs at the same time
+        self.submit_tool_outputs(tool_outputs, run_id)
+
+    def submit_tool_outputs(self, tool_outputs, run_id):
+        # Use the submit_tool_outputs_stream helper
+        with st.session_state.client.beta.threads.runs.submit_tool_outputs_stream(
+            thread_id=self.current_run.thread_id,
+            run_id=self.current_run.id,
+            tool_outputs=tool_outputs,
+            event_handler=EventHandler(),
+        ) as stream:
+            stream.until_done()
 
 
-def create_message_run(
-    model: str,
-    assistant_id: str,
+def create_message_run_stream(
     thread_id: str,
     query: str,
-    temperature: float,
     attached_files: dict
-) -> Optional[Run]:
+) -> Optional[Message]:
 
     """
     Run a conversation thread with an assistant.
 
     Args:
-        model: The GPT model used.
-        assistant_id: The ID of the assistant.
         thread_id: The ID of the conversation thread.
         query: The user's query.
-        temperature: Variable about the randomness of the results.
         attached_files: Dictionary containing list of attached file IDs.
     Returns:
-        Run object
+        Message object
     """
 
     content = [{"type": "text", "text": query}]
@@ -165,14 +201,6 @@ def create_message_run(
             for file_id in image_files
         ]
         content.extend(img_files)
-        model = GPT4
-    # if image_urls:
-    #     img_urls = [
-    #         {"type": "image_url", "image_url": {"url": url}}
-    #         for url in image_urls
-    #     ]
-    #     content.extend(img_urls)
-    #     model = GPT4
 
     code_interpreter_attachments = [
         {"file_id": file_id, "tools": [{"type": "code_interpreter"}]}
@@ -185,63 +213,22 @@ def create_message_run(
 
     try:
         # Create the user message and add it to the thread
-        st.session_state.client.beta.threads.messages.create(
+        message = st.session_state.client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
             content=content,
             attachments=code_interpreter_attachments + file_search_attachments,
         )
-        # Create the Run, passing in the thread and the assistant
-        run = st.session_state.client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=assistant_id,
-            model=model,
-            temperature=temperature,
-        )
-        return run
+        return message
 
     except APIError as e:
         st.error(f"An error occurred: {e}", icon="🚨")
         return None
 
 
-def run_and_wait_for_results(run: Optional[Run], thread_id: str) -> bool:
+def show_most_recent_assistant_image(thread_id: str) -> None:
     """
-    Take a run object and its thread id as input, and return True or False
-    depending on whether the run is successfully completed or not.
-    """
-
-    if run is None:
-        return False
-
-    while run.status != "completed":
-        run = st.session_state.client.beta.threads.runs.retrieve(
-            thread_id=thread_id, run_id=run.id
-        )
-        if run.status in {"failed", "expired"}:
-            st.error(f"The API request has {run.status}.", icon="🚨")
-            return False
-        elif run.status == "requires_action":
-            try:
-                run = submit_tool_outputs(
-                    thread_id,
-                    run.id,
-                    run.required_action.submit_tool_outputs.tool_calls
-                )
-            except Exception as e:
-                st.error(f"An error occurred: {e}", icon="🚨")
-                run = st.session_state.client.beta.threads.runs.cancel(
-                    thread_id=thread_id, run_id=run.id
-                )
-                return False
-        time.sleep(0.5)
-
-    return True
-
-
-def get_recent_ai_messages(thread_id: str) -> List[Message]:
-    """
-    Get the most recent assistant messages.
+    Show the most recent assistant image.
     """
 
     messages = st.session_state.client.beta.threads.messages.list(
@@ -249,13 +236,17 @@ def get_recent_ai_messages(thread_id: str) -> List[Message]:
         order="desc"
     )
 
-    messages_list = []
-    index = 0
-    while messages.data[index].role == "assistant":
-        messages_list.insert(0, messages.data[index])
-        index += 1
-
-    return messages_list
+    for message in messages.data:
+        for message_content in message.content:
+            if message.role == "user":
+                found = True
+                break
+            elif (image_file := getattr(message_content, "image_file", None)):
+                found = True
+                show_image(image_file.file_id)
+                break
+        if found:
+            break
 
 
 def process_citations(
@@ -416,6 +407,8 @@ def show_messages(messages: List[Message]) -> None:
     Show the given list of messages.
     """
 
+    thread_index = st.session_state.thread_index
+
     for message in messages:
         for message_content in message.content:
             if (text := getattr(message_content, "text", None)):
@@ -435,8 +428,11 @@ def show_messages(messages: List[Message]) -> None:
             elif (image_file := getattr(message_content, "image_file", None)):
                 file_id = image_file.file_id
                 file_name = get_file_name_from_id(file_id)
+                st.session_state.threads_list[thread_index]["file_ids"].append(
+                    file_id
+                )
                 if message.role == "assistant":
-                    show_image(image_file.file_id)
+                    show_image(file_id)
                 else:
                     link = f"https://platform.openai.com/storage/files/{file_id}"
                     st.write(f"$~~~~$Attachment: [{file_name}]({link})")
@@ -446,6 +442,9 @@ def show_messages(messages: List[Message]) -> None:
             file_names_list = []
             for attachment in message.attachments:
                 file_id = attachment.file_id
+                st.session_state.threads_list[thread_index]["file_ids"].append(
+                    file_id
+                )
                 link = f"https://platform.openai.com/storage/files/{file_id}"
                 file_names_list.append(
                     f"[{get_file_name_from_id(file_id)}]({link})"
@@ -566,7 +565,7 @@ def get_thread(thread_id: Optional[str]) -> None:
         thread_name = name_thread(thread_id)
 
     st.session_state.threads_list.insert(
-        0, {"id": thread_id, "name": thread_name}
+        0, {"id": thread_id, "name": thread_name, "file_ids": []}
     )
     st.session_state.thread_index = 0
     update_threads_info()
@@ -614,6 +613,8 @@ def delete_thread(thread_index: int) -> None:
     """
 
     if thread_exists(st.session_state.threads_list[thread_index]["id"]):
+        for file_id in st.session_state.threads_list[thread_index]["file_ids"]:
+            delete_file(file_id)
         st.session_state.client.beta.threads.delete(
             st.session_state.threads_list[thread_index]["id"]
         )
@@ -1197,7 +1198,7 @@ def run_assistant(model, assistant_id):
     query = st.chat_input(
         placeholder="Enter your query",
     )
-    upload_file_options = "image", "code_interpreter", "file_search"
+    file_options = "image", "code_interpreter", "file_search"
 
     if query or st.session_state.text_from_audio:
         if st.session_state.text_from_audio:
@@ -1207,35 +1208,42 @@ def run_assistant(model, assistant_id):
             st.markdown(query)
 
         attached_files = {}
-        for purpose in upload_file_options:
+        for purpose in file_options:
             attached_files[purpose] = send_files_to_openai(
                 st.session_state.files[purpose]
             )
-        run = create_message_run(
-            model=model,
-            assistant_id=assistant_id,
+
+        create_message_run_stream(
             thread_id=thread_id,
             query=query,
-            temperature=st.session_state.temperature,
             attached_files=attached_files,
         )
 
-        with st.spinner("AI is thinking..."):
-            if run_and_wait_for_results(run, thread_id):
-                recent_messages = get_recent_ai_messages(thread_id)
-                st.session_state.files = {key: [] for key in upload_file_options}
-                st.session_state.uploader_key += 1
-            else:
-                recent_messages = None
-
-        if recent_messages is None:
-            st.error("Request not completed.", icon="🚨")
-        else:
-            show_messages(recent_messages)
-            if st.session_state.threads_list[thread_index]["name"] == "No name yet":
-                thread_name = name_thread(thread_id)
-                st.session_state.threads_list[thread_index]["name"] = thread_name
-                update_threads_info()
+        with st.chat_message("assistant"):
+            if st.session_state.files["image"]:
+                model = GPT4
+            try:
+                with st.session_state.client.beta.threads.runs.stream(
+                    model=model,
+                    thread_id=thread_id,
+                    assistant_id=assistant_id,
+                    temperature=st.session_state.temperature,
+                    event_handler=EventHandler()
+                ) as stream:
+                    stream.until_done()
+                    show_most_recent_assistant_image(thread_id)
+                    st.session_state.files = {key: [] for key in file_options}
+                    st.session_state.uploader_key += 1
+                    if st.session_state.threads_list[thread_index]["name"] == (
+                        "No name yet"
+                    ):
+                        thread_name = name_thread(thread_id)
+                        st.session_state.threads_list[thread_index]["name"] = (
+                            thread_name
+                        )
+                        update_threads_info()
+            except Exception as e:
+                st.error(f"An error occurred: {e}", icon="🚨")
 
         if st.session_state.text_from_audio:
             st.session_state.text_from_audio = None
@@ -1245,7 +1253,7 @@ def run_assistant(model, assistant_id):
     left.write("**$\:\!$Upload Files**")
     purpose = right.radio(
         label="purpose",
-        options=upload_file_options,
+        options=file_options,
         horizontal=True,
         label_visibility="collapsed"
     )
