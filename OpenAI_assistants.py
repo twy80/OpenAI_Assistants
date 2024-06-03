@@ -110,9 +110,10 @@ class EventHandler(AssistantEventHandler):
 
     @override
     def on_text_delta(self, delta, snapshot):
-        if delta.value is not None:
-            self.current_text += delta.value
-            self.text_placeholder.write(self.current_text)
+        if delta.value is None:
+            delta.value = ""
+        self.current_text += delta.value
+        self.text_placeholder.write(self.current_text)
 
     def on_tool_call_created(self, tool_call):
         if tool_call.type == "function":
