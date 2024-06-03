@@ -110,8 +110,13 @@ class EventHandler(AssistantEventHandler):
 
     @override
     def on_text_delta(self, delta, snapshot):
-        self.current_text += delta.value
-        self.text_placeholder.write(self.current_text)
+        try:
+            self.current_text += delta.value
+            self.text_placeholder.write(self.current_text)
+        except Exception as e:
+            # st.error(f"An error occurred: {e}", icon="🚨")
+            # Ignore if there are problems with extracting citation information
+            pass
 
     def on_tool_call_created(self, tool_call):
         if tool_call.type == "function":
