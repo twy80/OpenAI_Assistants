@@ -116,25 +116,28 @@ class EventHandler(AssistantEventHandler):
 
     def on_tool_call_created(self, tool_call):
         if tool_call.type == "function":
-            tool_name = "Search"
+            tool_name = tool_call.function.name
         else:
             tool_name = tool_call.type
-            tool_name = tool_name[0].upper() + tool_name[1:]
+        tool_name = tool_name[0].upper() + tool_name[1:]
         self.current_text += f"\n\n**:blue[{tool_name}]**: "
         self.text_placeholder.write(self.current_text)
+        if tool_name == "Code_interpreter":
+            self.current_text += "\n```python\n"
 
     def on_tool_call_delta(self, delta, snapshot):
-        if delta.type == 'code_interpreter':
+        if delta.type == "code_interpreter":
             if delta.code_interpreter.input:
                 self.current_text += delta.code_interpreter.input
                 self.text_placeholder.write(self.current_text)
+            else:
+                self.current_text += "\n```"
             if delta.code_interpreter.outputs:
                 self.current_text += f"\n\n**:blue[Output]**: "
                 for output in delta.code_interpreter.outputs:
                     if output.type == "logs":
                         self.current_text += f"\n\n{output.logs}"
-                self.text_placeholder.write(self.current_text)
-                self.current_text += "\n\n**:blue[Assistant]**: "
+                        self.text_placeholder.write(self.current_text)
 
     @override
     def on_event(self, event):
