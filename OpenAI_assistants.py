@@ -276,8 +276,8 @@ def process_citations(
         try:
             if (file_citation := getattr(annotation, "file_citation", None)):
                 cited_file = client.files.retrieve(file_citation.file_id)
-                citations.append(file_citation.quote)
                 cited_files.append(f"[{index+1}] :blue[{cited_file.filename}]")
+                # citations.append(file_citation.quote)
             elif (file_path := getattr(annotation, "file_path", None)):
                 cited_file = client.files.retrieve(file_path.file_id)
                 link = f"https://platform.openai.com/storage/files/{file_path.file_id}"
@@ -285,9 +285,7 @@ def process_citations(
                     f"[{index+1}] [:blue[{cited_file.filename}]]({link})"
                 )
         except Exception as e:
-            # st.error(f"An error occurred: {e}", icon="🚨")
-            # Ignore if there are problems with extracting citation information
-            pass
+            st.error(f"An error occurred: {e}", icon="🚨")
 
     return content.value, citations, cited_files, cited_links
 
@@ -415,10 +413,12 @@ def show_messages(messages: List[Message]) -> None:
                 )
                 with st.chat_message(message.role):
                     display_text_with_equations(content_text)
-                    if citations:
+                    if cited_files:
                         with st.expander("Source(s)"):
-                            for citation, file in zip(citations, cited_files):
-                                st.markdown(file, help=citation)
+                            # for citation, file in zip(citations, cited_files):
+                            #     st.markdown(file, help=citation)
+                            for file in cited_files:
+                                st.markdown(file)
                     if cited_links:
                         with st.expander("File(s) created by the assistant"):
                             for cited_link in cited_links:
