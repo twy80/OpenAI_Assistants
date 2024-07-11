@@ -247,9 +247,7 @@ def show_most_recent_assistant_image(thread_id: str) -> None:
                 show_image(image_file.file_id)
 
 
-def process_citations(
-    content: Text
-) -> Tuple[str, List[Optional[str]], List[str], List[str]]:
+def process_citations(content: Text) -> Tuple[str, List[str], List[str]]:
 
     """
     Process citations in the given message, and return
@@ -260,13 +258,13 @@ def process_citations(
 
     Returns:
         A tuple containing the modified message content,
-        and lists of citations, cited files, and cited links.
+        and lists of cited files and cited links.
     """
 
     client = st.session_state.client
 
     annotations = content.annotations
-    citations, cited_files, cited_links = [], [], []
+    cited_files, cited_links = [], []
 
     for index, annotation in enumerate(annotations):
         # Replace the text with a footnote
@@ -276,8 +274,10 @@ def process_citations(
         try:
             if (file_citation := getattr(annotation, "file_citation", None)):
                 cited_file = client.files.retrieve(file_citation.file_id)
-                cited_files.append(f"[{index+1}] :blue[{cited_file.filename}]")
-                # citations.append(file_citation.quote)
+                cited_files.append(
+                    f"[{index+1}] {cited_file.filename}, "
+                    f"{annotation.start_index}-{annotation.end_index}"
+                )
             elif (file_path := getattr(annotation, "file_path", None)):
                 cited_file = client.files.retrieve(file_path.file_id)
                 link = f"https://platform.openai.com/storage/files/{file_path.file_id}"
@@ -287,7 +287,7 @@ def process_citations(
         except Exception as e:
             st.error(f"An error occurred: {e}", icon="🚨")
 
-    return content.value, citations, cited_files, cited_links
+    return content.value, cited_files, cited_links
 
 
 def get_file_path(key: str, length: int=20) -> str:
@@ -408,15 +408,11 @@ def show_messages(messages: List[Message]) -> None:
     for message in messages:
         for message_content in message.content:
             if (text := getattr(message_content, "text", None)):
-                content_text, citations, cited_files, cited_links = (
-                    process_citations(text)
-                )
+                content_text, cited_files, cited_links = process_citations(text)
                 with st.chat_message(message.role):
                     display_text_with_equations(content_text)
                     if cited_files:
                         with st.expander("Source(s)"):
-                            # for citation, file in zip(citations, cited_files):
-                            #     st.markdown(file, help=citation)
                             for file in cited_files:
                                 st.markdown(file)
                     if cited_links:
