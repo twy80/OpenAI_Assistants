@@ -1333,7 +1333,16 @@ def openai_assistants():
     if "new_ci_files" not in st.session_state:
         st.session_state.new_ci_files = []
 
-    st.write("## 📚 OpenAI Assistants")
+    page_title = "OpenAI Assistants"
+    page_icon = "📚"
+
+    st.set_page_config(
+        page_title=page_title,
+        page_icon=page_icon,
+        layout="centered"
+    )
+
+    st.write(f"## {page_icon} $\,${page_title}")
     st.write("")
 
     with st.sidebar:
