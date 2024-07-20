@@ -21,7 +21,7 @@ from streamlit.runtime.uploaded_file_manager import UploadedFile
 from openai.types.beta.threads.message import Message
 from openai.types.beta.threads.text import Text
 
-GPT3_5, GPT4 = "gpt-3.5-turbo", "gpt-4o"
+GPT4_MINI, GPT4 = "gpt-4o-mini", "gpt-4o"
 
 
 class NamedBytesIO(BytesIO):
@@ -489,7 +489,7 @@ def name_thread(thread_id: str) -> None:
 
     try:
         response = st.session_state.client.chat.completions.create(
-            model=GPT3_5,
+            model=GPT4_MINI,
             messages=[
                 {
                     "role": "system",
@@ -998,7 +998,7 @@ def update_assistant(assistant_id: Optional[str]) -> None:
         available_tools = ["file_search", "code_interpreter"]
 
     client = st.session_state.client
-    model_options = [GPT3_5, GPT4]
+    model_options = [GPT4_MINI, GPT4]
     if assistant_id is None:
         st.write("**:blue[Create Your Assistant]**")
         model_index = 1
@@ -1039,7 +1039,7 @@ def update_assistant(assistant_id: Optional[str]) -> None:
     )
     model = st.radio(
         label="Default models",
-        options=(GPT3_5, GPT4),
+        options=(GPT4_MINI, GPT4),
         label_visibility="collapsed",
         index=model_index,
     )
@@ -1459,7 +1459,7 @@ def openai_assistants():
         st.write("**Models**")
         model = st.radio(
             label="$\\textsf{Models}$",
-            options=(GPT3_5, GPT4),
+            options=(GPT4_MINI, GPT4),
             label_visibility="collapsed",
             index=1,
         )
