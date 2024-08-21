@@ -460,16 +460,18 @@ def show_thread_messages(
 
     messages = st.session_state.client.beta.threads.messages.list(
         thread_id=thread_id,
-        order="asc"
+        # order="asc"
     )
+    # Setting order="asc" does not function well when the list is long.
+    messages_data = messages.data[::-1]
 
     if no_of_messages == "All":
-        no_of_messages = len(messages.data)
+        no_of_messages = len(messages_data)
     elif not isinstance(no_of_messages, int) or no_of_messages <= 0:
         st.error("'no_of_messages' is a positive integer or 'All'", icon="🚨")
         return None
 
-    show_messages(messages.data[-no_of_messages:])
+    show_messages(messages_data[-no_of_messages:])
 
 
 def name_thread(thread_id: str) -> None:
