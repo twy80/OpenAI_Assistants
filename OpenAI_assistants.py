@@ -462,7 +462,7 @@ def show_thread_messages(
         thread_id=thread_id, limit=100
         # order="asc"
     )
-    # Setting order to "asc" may not show the most recent message
+    # Setting the order to "asc" does not display the most recent messages
     # when there are more than 100 messages.
     messages_data = messages.data[::-1]
 
