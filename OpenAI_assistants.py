@@ -459,10 +459,11 @@ def show_thread_messages(
     """
 
     messages = st.session_state.client.beta.threads.messages.list(
-        thread_id=thread_id,
+        thread_id=thread_id, limit=100
         # order="asc"
     )
-    # Setting order="asc" does not function well when the list is long.
+    # Setting order to "asc" may not show the most recent message
+    # when there are more than 100 messages.
     messages_data = messages.data[::-1]
 
     if no_of_messages == "All":
