@@ -447,32 +447,20 @@ def show_messages(messages: List[Message]) -> None:
             st.write(f"$~~~~$Attachment(s): {file_names}")
 
 
-def show_thread_messages(
-    thread_id: str,
-    no_of_messages: Union[Literal["All"], int]
-) -> None:
-
+def show_thread_messages(thread_id: str, no_of_messages: int) -> None:
     """
     Show the most recent 'no_of_messages' messages of a given thread.
-    The argument 'no_of_messages' is a positive integer or "All, and
-    if 'no_of_messages' is "All", all the messages are shown.
     """
 
-    messages = st.session_state.client.beta.threads.messages.list(
-        thread_id=thread_id, limit=100
-        # order="asc"
-    )
-    # Setting the order to "asc" does not display the most recent messages
-    # when there are more than 100 messages.
-    messages_data = messages.data[::-1]
-
-    if no_of_messages == "All":
-        no_of_messages = len(messages_data)
-    elif not isinstance(no_of_messages, int) or no_of_messages <= 0:
-        st.error("'no_of_messages' is a positive integer or 'All'", icon="🚨")
+    if not isinstance(no_of_messages, int) or no_of_messages <= 0:
+        st.error("'no_of_messages' is a positive integer.", icon="🚨")
         return None
 
-    show_messages(messages_data[-no_of_messages:])
+    messages = st.session_state.client.beta.threads.messages.list(
+        thread_id=thread_id, limit=no_of_messages
+    )
+
+    show_messages(messages.data[::-1])
 
 
 def name_thread(thread_id: str) -> None:
@@ -1291,7 +1279,7 @@ def openai_assistants():
         st.session_state.thread_names = []
 
     if "no_of_messages" not in st.session_state:
-        st.session_state.no_of_messages = "All"
+        st.session_state.no_of_messages = 20
 
     if "files" not in st.session_state:
         st.session_state.files = {
@@ -1556,13 +1544,14 @@ def openai_assistants():
             label_visibility="collapsed",
         )
 
-        st.write("**Prev. Messages to Show**")
-        st.session_state.no_of_messages = st.radio(
+        st.write("**Messages to Show**")
+        st.session_state.no_of_messages = st.number_input(
             label="$\\textsf{Messages to show}$",
-            options=("All", 20, 10),
+            min_value=10,
+            max_value=100,
+            value=20,
+            step=10,
             label_visibility="collapsed",
-            horizontal=True,
-            index=2,
         )
 
         st.write("")
