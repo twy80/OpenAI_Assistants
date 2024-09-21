@@ -16,7 +16,7 @@ from langchain_community.utilities import BingSearchAPIWrapper
 from audio_recorder_streamlit import audio_recorder
 from typing_extensions import override
 # The following are for type annotations
-from typing import Union, List, Tuple, Dict, Literal, Optional
+from typing import Union, List, Tuple, Dict, Literal, Optional, Any
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 from openai.types.beta.threads.message import Message
 from openai.types.beta.threads.text import Text
@@ -554,6 +554,63 @@ def get_thread(thread_id: Optional[str]) -> None:
     )
     st.session_state.thread_index = 0
     update_threads_info()
+
+
+def show_uploader() -> None:
+    """
+    Set the flag to show the uploader.
+    """
+
+    st.session_state.show_uploader = True
+
+
+def check_thread_list_format(lst: List[Dict[str, Any]]) -> bool:
+    """
+    Check if the given list conforms to the expected thread list format.
+    """
+
+    expected_keys = {
+        "id": str,
+        "name": str,
+        "file_ids": list
+    }
+
+    # Check if each item in the list is an expected dictionary
+    for item in lst:
+        if not isinstance(item, dict):
+            return False
+
+        for key, expected_type in expected_keys.items():
+            if key not in item or not isinstance(item[key], expected_type):
+                return False
+
+    return True
+
+
+def load_threads_json() -> bool:
+    """
+    Load a thread list from a JSON file
+    """
+
+    st.write("")
+    st.write("**Choose a JSON file of a thread list**")
+    uploaded_file = st.file_uploader(
+        label="Load a thread list", type="json", label_visibility="collapsed"
+    )
+    if uploaded_file:
+        try:
+            data = json.load(uploaded_file)
+            if isinstance(data, list) and check_thread_list_format(data):
+                st.session_state.threads_list = data
+                save_thread_info_file()
+                return True
+            st.error(
+                f"The uploaded data does not conform to the expected format.", icon="🚨"
+            )
+        except Exception as e:
+            st.error(f"An error occurred: {e}", icon="🚨")
+
+    return False
 
 
 def delete_file(file_id: str) -> None:
@@ -1324,6 +1381,9 @@ def openai_assistants():
     if "new_ci_files" not in st.session_state:
         st.session_state.new_ci_files = []
 
+    if "show_uploader" not in st.session_state:
+        st.session_state.show_uploader = False
+
     page_title = "OpenAI Assistants"
     page_icon = "📚"
 
@@ -1404,14 +1464,15 @@ def openai_assistants():
                     """
                     **Which information is stored where?**
 
-                    Objects like assistants, threads, and messages are all
-                    stored on OpenAI. In the Streamlit server where this app
-                    is being deployed, only lists containing the IDs and names
-                    of the thread objects are maintained. The problem is that
-                    the lists may be initialized when the app is rebooted.
-                    Users are therefore encouraged to save the thread IDs,
-                    as they can be used to recover unlisted (missing) threads.
-                    Thread IDs are shown at the bottom of each thread message.
+                    Objects such as assistants, threads, and messages are all
+                    stored on OpenAI. On the Streamlit server where this app
+                    is deployed, only lists containing the IDs and names of
+                    the threads, along with the file IDs, are maintained.
+                    The problem is that all the lists are reinitialized when
+                    the app is rebooted. Therefore, users are encouraged to
+                    download their thread lists to their local drives as JSON
+                    files, which can be reloaded. Thread IDs can also be added
+                    to the list.
                     """
                 )
                 st.image("files/Streamlit_Assistants_App.png")
@@ -1573,6 +1634,21 @@ def openai_assistants():
             if right.button("No"):
                 st.rerun()
         if st.button(label="$\;$Refresh the screen$~$"):
+            st.rerun()
+
+        st.download_button(
+            label="Download the thread list",
+            data=json.dumps(st.session_state.threads_list),
+            file_name="assistant_threads.json",
+            mime="application/json",
+        )
+        st.button(
+            label="$~~\:\,$Load the thread list$~~\:\,$",
+            on_click=show_uploader,
+        )
+
+        if st.session_state.show_uploader and load_threads_json():
+            st.session_state.show_uploader = False
             st.rerun()
 
         st.write("---")
