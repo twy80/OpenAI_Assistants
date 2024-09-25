@@ -398,6 +398,20 @@ def show_image(image_file: str) -> None:
         st.error(f"An error occurred: {e}", icon="🚨")
 
 
+def append_unique(lst: List[Any], obj: Any) -> bool:
+    """
+    Append an object to the list only if it is not already present.
+    Return True if the object is new and has been added to the list;
+    otherwise, return False.
+    """
+
+    if obj in lst:
+        return False
+    else:
+        lst.append(obj)
+        return True
+
+
 def show_messages(messages: List[Message]) -> None:
     """
     Show the given list of messages.
@@ -422,9 +436,11 @@ def show_messages(messages: List[Message]) -> None:
             elif (image_file := getattr(message_content, "image_file", None)):
                 file_id = image_file.file_id
                 file_name = get_file_name_from_id(file_id)
-                st.session_state.threads_list[thread_index]["file_ids"].append(
+                if append_unique(
+                    st.session_state.threads_list[thread_index]["file_ids"],
                     file_id
-                )
+                ):
+                    save_thread_info_file()
                 if message.role == "assistant":
                     show_image(file_id)
                 else:
@@ -436,9 +452,11 @@ def show_messages(messages: List[Message]) -> None:
             file_names_list = []
             for attachment in message.attachments:
                 file_id = attachment.file_id
-                st.session_state.threads_list[thread_index]["file_ids"].append(
+                if append_unique(
+                    st.session_state.threads_list[thread_index]["file_ids"],
                     file_id
-                )
+                ):
+                    save_thread_info_file()
                 link = f"https://platform.openai.com/storage/files/{file_id}"
                 file_names_list.append(
                     f"[{get_file_name_from_id(file_id)}]({link})"
@@ -550,7 +568,7 @@ def get_thread(thread_id: Optional[str]) -> None:
         thread_name = name_thread(thread_id)
 
     st.session_state.threads_list.insert(
-        0, {"id": thread_id, "name": thread_name, "file_ids": []}
+        0, {"name": thread_name, "id": thread_id, "file_ids": []}
     )
     st.session_state.thread_index = 0
     update_threads_info()
