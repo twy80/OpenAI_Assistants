@@ -605,6 +605,21 @@ def check_thread_list_format(lst: List[Dict[str, Any]]) -> bool:
     return True
 
 
+def validate_add_thread(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Takes a list of dictionaries containing thread information,
+    validate each thread by checking if it exists, and
+    return a list of valid threads.
+    """
+
+    threads_list = []
+    for dic in data:
+        if thread_exists(dic["id"]):
+            threads_list.append(dic)
+
+    return threads_list
+
+
 def load_threads_json() -> bool:
     """
     Load a thread list from a JSON file
@@ -619,8 +634,9 @@ def load_threads_json() -> bool:
         try:
             data = json.load(uploaded_file)
             if isinstance(data, list) and check_thread_list_format(data):
-                st.session_state.threads_list = data
-                save_thread_info_file()
+                if threads_list := validate_add_thread(data):
+                    st.session_state.threads_list = threads_list
+                    save_thread_info_file()
                 return True
             st.error(
                 f"The uploaded data does not conform to the expected format.", icon="🚨"
