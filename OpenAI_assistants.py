@@ -620,6 +620,29 @@ def validate_add_threads(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return threads_list
 
 
+def concatenate_unique(
+    original_list: List[Dict[str, Any]],
+    additional_list: List[Dict[str, Any]]
+) -> None:
+
+    """
+    Concatenate two lists of dictionaries, ensuring unique entries based on 'id'.
+    """
+
+    # Create a dictionary to hold unique items based on 'id'
+    unique_items = {item['id']: item for item in original_list}
+
+    # Add items from list additional_list,
+    # updating only if 'id' is not already in the dictionary
+    for item in additional_list:
+        if item['id'] not in unique_items:
+            unique_items[item['id']] = item
+
+    # Convert the dictionary values back to a list and
+    # assign it to original_list
+    original_list[:] = list(unique_items.values())
+
+
 def load_threads_json() -> bool:
     """
     Load a thread list from a JSON file
@@ -635,7 +658,9 @@ def load_threads_json() -> bool:
             data = json.load(uploaded_file)
             if isinstance(data, list) and check_thread_list_format(data):
                 if threads_list := validate_add_threads(data):
-                    st.session_state.threads_list = threads_list
+                    concatenate_unique(
+                        st.session_state.threads_list, threads_list
+                    )
                     save_thread_info_file()
                 return True
             st.error(
