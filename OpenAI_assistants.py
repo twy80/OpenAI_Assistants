@@ -1697,7 +1697,7 @@ def openai_assistants():
 
         st.download_button(
             label="Download the thread list",
-            data=json.dumps(st.session_state.threads_list),
+            data=json.dumps(st.session_state.threads_list, indent=4),
             file_name="assistant_threads.json",
             mime="application/json",
         )
